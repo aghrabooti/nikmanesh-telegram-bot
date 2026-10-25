@@ -1,0 +1,17 @@
+# ── pyproject: ابزارهای کیفیت ──
+[project]
+name = "tizgam-seminar-bot"
+version = "1.0.0"
+description = "Telegram seminar registration bot for Tizgam"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
