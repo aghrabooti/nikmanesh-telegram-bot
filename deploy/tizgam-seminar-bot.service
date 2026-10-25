@@ -1,0 +1,16 @@
+[Unit]
+Description=Tizgam seminar registration Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegram
+WorkingDirectory=/opt/tizgam-seminar-bot
+Environment=TZ=Asia/Tehran
+ExecStart=/opt/tizgam-seminar-bot/.venv/bin/python -m bot
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
