@@ -1,0 +1,48 @@
+nohup: ignoring input
+nohup: failed to run command 'python': Permission denied
+nohup: ignoring input
+2026-10-23 15:50:00,218 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-23 15:50:00,670 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-23 15:50:00,670 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-23 16:50:42,791 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-23 16:50:43,102 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-23 16:50:43,102 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-23 16:52:01,341 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-23 16:52:21,312 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-23 16:52:21,629 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-23 16:52:21,629 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-23 16:53:36,341 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-23 16:53:36,661 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-23 16:53:36,661 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-23 17:46:51,049 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-23 17:46:53,638 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-23 17:46:54,068 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-23 17:46:54,068 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-24 17:53:42,958 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-24 17:53:45,563 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-24 17:53:45,900 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-24 17:53:45,900 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-24 18:01:45,838 | INFO    | bot.handlers.admin | لینک رفرال جدید ساخته شد: 22h3v7 (تست 1)
+2026-10-24 18:36:59,166 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-24 18:36:59,579 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-24 18:36:59,579 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-24 19:18:10,434 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-24 19:18:13,017 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-24 19:18:13,592 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-24 19:18:13,592 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-24 19:18:34,900 | INFO    | bot.handlers.admin | لینک رفرال جدید ساخته شد: q3c2rj (تست 2)
+2026-10-24 19:19:50,113 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-24 19:19:52,696 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-24 19:19:53,046 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-24 19:19:53,046 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-25 13:59:47,156 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-25 13:59:49,730 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-25 13:59:50,102 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-25 13:59:50,102 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-25 17:12:14,949 | INFO    | bot.handlers.admin | لینک رفرال جدید ساخته شد: gqbt9d (test)
+2026-10-25 20:14:33,315 | INFO    | bot.services.reminders | حلقه‌ی یادآورها متوقف شد
+2026-10-25 20:14:35,884 | INFO    | tizgam-seminar-bot | ربات با polling شروع می‌شود…
+2026-10-25 20:14:36,625 | INFO    | bot.services.reminders | حلقه‌ی یادآورها روشن شد (هر 600 ثانیه)
+2026-10-25 20:14:36,626 | INFO    | bot.services.sender | صف ارسال انبوه روشن شد (نرخ ۵ در ثانیه)
+2026-10-25 20:17:30,488 | INFO    | bot.handlers.admin | لینک رفرال جدید ساخته شد: 79pmpb (ref test)
+2026-10-26 23:48:45,997 | INFO    | bot.handlers.admin | لینک رفرال جدید ساخته شد: 4g92xc (ref new)
