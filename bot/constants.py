@@ -31,9 +31,11 @@ CB_ADMIN_ADS_TOGGLE = "adm:ads:t:{link_id}"
 CB_ADMIN_ADS_MSG = "adm:ads:msg"
 CB_ADMIN_ADS_REGS = "adm:ads:rg:{link_id}"
 CB_ADMIN_ADS_REGS_CSV = "adm:ads:rgc:{link_id}"
+CB_ADMIN_ADS_REGS_XLSX = "adm:ads:rgx:{link_id}"
 CB_ADMIN_ADS_RESET_PHRASE = "adm:ads:pw:{link_id}"
 CB_ADMIN_ADS_KICK = "adm:ads:k:{link_id}:{user_id}"
 CB_ADMIN_ADS_CSV = "adm:ads:csv"
+CB_ADMIN_ADS_XLSX = "adm:ads:xlsx"
 
 # پیشوند payload لینک‌های رفرال در /start (مثل /start ref_ab12c)
 REF_START_PREFIX = "ref_"
@@ -46,8 +48,14 @@ CHANNELS_STATE_KEY = "channels_phrase"
 
 # بخش کانال‌ها (دسترسی فقط-آماری ادمین کانال)
 CB_CH_LINK = "ch:l:{link_id}"
+CB_CH_ADD = "ch:add"
 CB_ADMIN_REGS_MSG = "adm:regs:msg:{seminar_id}"
 CB_ADMIN_REGS_CSV = "adm:regs:csv:{seminar_id}"
+CB_ADMIN_REGS_CSV_COMPLETE = "adm:regs:csv-complete:{seminar_id}"
+CB_ADMIN_REGS_XLSX = "adm:regs:xlsx:{seminar_id}"
+CB_ADMIN_REGS_XLSX_COMPLETE = "adm:regs:xlsx-complete:{seminar_id}"
+CB_ADMIN_USERS_CSV = "adm:users:csv"
+CB_ADMIN_USERS_XLSX = "adm:users:xlsx"
 CB_ADMIN_RANGE = "adm:range:{code}"
 CB_ADMIN_BCAST = "adm:bcast"
 CB_ADMIN_BCAST_GO = "adm:bcast:go"
@@ -94,12 +102,20 @@ PATTERN_ADMIN_ADS_TOGGLE = re.compile(r"^adm:ads:t:(\d+)$")
 PATTERN_ADMIN_ADS_MSG = re.compile(r"^adm:ads:msg$")
 PATTERN_ADMIN_ADS_REGS = re.compile(r"^adm:ads:rg:(\d+)$")
 PATTERN_ADMIN_ADS_REGS_CSV = re.compile(r"^adm:ads:rgc:(\d+)$")
+PATTERN_ADMIN_ADS_REGS_XLSX = re.compile(r"^adm:ads:rgx:(\d+)$")
 PATTERN_ADMIN_ADS_RESET_PHRASE = re.compile(r"^adm:ads:pw:(\d+)$")
 PATTERN_ADMIN_ADS_KICK = re.compile(r"^adm:ads:k:(\d+):(\d+)$")
 PATTERN_CH_LINK = re.compile(r"^ch:l:(\d+)$")
+PATTERN_CH_ADD = re.compile(r"^ch:add$")
 PATTERN_ADMIN_ADS_CSV = re.compile(r"^adm:ads:csv$")
+PATTERN_ADMIN_ADS_XLSX = re.compile(r"^adm:ads:xlsx$")
 PATTERN_ADMIN_REGS_MSG = re.compile(r"^adm:regs:msg:(\d+)$")
 PATTERN_ADMIN_REGS_CSV = re.compile(r"^adm:regs:csv:(\d+)$")
+PATTERN_ADMIN_REGS_CSV_COMPLETE = re.compile(r"^adm:regs:csv-complete:(\d+)$")
+PATTERN_ADMIN_REGS_XLSX = re.compile(r"^adm:regs:xlsx:(\d+)$")
+PATTERN_ADMIN_REGS_XLSX_COMPLETE = re.compile(r"^adm:regs:xlsx-complete:(\d+)$")
+PATTERN_ADMIN_USERS_CSV = re.compile(r"^adm:users:csv$")
+PATTERN_ADMIN_USERS_XLSX = re.compile(r"^adm:users:xlsx$")
 PATTERN_ADMIN_RANGE = re.compile(r"^adm:range:(\w+)$")
 PATTERN_ADMIN_BCAST = re.compile(r"^adm:bcast$")
 PATTERN_ADMIN_BCAST_GO = re.compile(r"^adm:bcast:go$")
