@@ -8,7 +8,10 @@ from bot.config import content
 from bot.constants import (
     CB_ADMIN_ABOUT,
     CB_ADMIN_ADS,
+    CB_ADMIN_ADS_ASSIGN,
     CB_ADMIN_ADS_CSV,
+    CB_ADMIN_ADS_DELETE,
+    CB_ADMIN_ADS_DELETE2,
     CB_ADMIN_ADS_KICK,
     CB_ADMIN_ADS_MSG,
     CB_ADMIN_ADS_NEW,
@@ -20,6 +23,10 @@ from bot.constants import (
     CB_ADMIN_BCAST,
     CB_ADMIN_BCAST_GO,
     CB_ADMIN_BCAST_NO,
+    CB_ADMIN_EXPORT_ALL,
+    CB_ADMIN_EXPORT_CANCEL,
+    CB_ADMIN_EXPORT_LEADS,
+    CB_ADMIN_EXPORT_STARTS,
     CB_ADMIN_RANGE,
     CB_ADMIN_REGS,
     CB_ADMIN_REGS_CSV,
@@ -38,6 +45,7 @@ from bot.constants import (
     CB_ADMIN_SEMS,
     CB_ADMIN_USERS_CSV,
     CB_ADMIN_USERS_XLSX,
+    CB_ADMIN_WIDE,
     CB_MAIN,
     SEMINAR_FIELDS,
 )
@@ -58,7 +66,10 @@ def overview(*, reminders_on: bool = True) -> InlineKeyboardMarkup:
                 _btn(content.LBL_ADMIN_USERS_CSV, CB_ADMIN_USERS_CSV),
                 _btn(content.LBL_ADMIN_USERS_XLSX, CB_ADMIN_USERS_XLSX),
             ],
+            [_btn(content.LBL_ADMIN_CONTACT_LEADS_XLSX, CB_ADMIN_EXPORT_LEADS)],
+            [_btn(content.LBL_ADMIN_REG_STARTS_XLSX, CB_ADMIN_EXPORT_STARTS)],
             [_btn(content.LBL_ADMIN_ADS, CB_ADMIN_ADS)],
+            [_btn(content.LBL_ADMIN_WIDE, CB_ADMIN_WIDE)],
             [
                 _btn(
                     content.LBL_ADMIN_REMINDERS_ON
@@ -69,6 +80,16 @@ def overview(*, reminders_on: bool = True) -> InlineKeyboardMarkup:
             ],
             [_btn(content.LBL_ADMIN_ABOUT, CB_ADMIN_ABOUT)],
             [_btn(content.LBL_HOME, CB_MAIN)],
+        ]
+    )
+
+
+def export_range_prompt(kind: str) -> InlineKeyboardMarkup:
+    """انتخاب کل سابقه یا بازگشت از پرامپت بازهٔ تاریخ/ساعت خروجی."""
+    return InlineKeyboardMarkup(
+        [
+            [_btn(content.ADMIN_EXPORT_ALL, CB_ADMIN_EXPORT_ALL.format(kind=kind))],
+            [_btn(content.ADMIN_EXPORT_CANCEL, CB_ADMIN_EXPORT_CANCEL)],
         ]
     )
 
@@ -204,10 +225,28 @@ def ads_link_detail(link: dict) -> InlineKeyboardMarkup:
     for admin_row in _link_admin_rows(link_id):
         rows.append(admin_row)
     rows += [
+        [_btn(content.LBL_ADS_ASSIGN, CB_ADMIN_ADS_ASSIGN.format(link_id=link_id))],
+        [_btn(content.LBL_ADS_DELETE, CB_ADMIN_ADS_DELETE.format(link_id=link_id))],
         [_btn(content.LBL_BACK, CB_ADMIN_ADS)],
         [_btn(content.LBL_HOME, CB_MAIN)],
     ]
     return InlineKeyboardMarkup(rows)
+
+
+def ads_delete_confirm(link: dict) -> InlineKeyboardMarkup:
+    link_id = int(link["link_id"])
+    return InlineKeyboardMarkup(
+        [
+            [
+                _btn(
+                    content.LBL_ADS_DELETE_CONFIRM,
+                    CB_ADMIN_ADS_DELETE2.format(link_id=link_id),
+                )
+            ],
+            [_btn(content.LBL_BACK, f"adm:ads:v:{link_id}")],
+            [_btn(content.LBL_HOME, CB_MAIN)],
+        ]
+    )
 
 
 def _link_admin_rows(link_id: int) -> list[list[InlineKeyboardButton]]:
