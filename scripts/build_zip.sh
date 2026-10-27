@@ -10,8 +10,8 @@ trap 'rm -rf "$STAGE"' EXIT
 
 mkdir -p "$STAGE/tizgam-seminar-bot"
 cd "$ROOT"
-cp -r bot tests deploy scripts README.md requirements.txt requirements-dev.txt \
-      pyproject.toml .env.example "$STAGE/tizgam-seminar-bot/"
+cp -r bot tests deploy scripts docs README.md requirements.txt requirements-dev.txt \
+      pyproject.toml .env.example .gitignore "$STAGE/tizgam-seminar-bot/"
 
 # پاک‌سازی فایل‌های بایت‌کد
 find "$STAGE" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
