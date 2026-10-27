@@ -64,6 +64,13 @@ async def _on_startup(app: Application) -> None:
         interval_minutes=settings.database_backup_interval_minutes,
         retention_days=settings.database_backup_retention_days,
     )
+    database_backups.ensure_delivery_task(
+        settings.database_path,
+        settings.database_backup_dir,
+        app.bot,
+        settings.admin_ids,
+        retention_days=settings.database_backup_retention_days,
+    )
 
 
 async def _on_shutdown(app: Application) -> None:
