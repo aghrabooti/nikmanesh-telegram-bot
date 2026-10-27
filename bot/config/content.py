@@ -194,6 +194,51 @@ ADMIN_ABOUT_INVALID = "متن حداکثر ۲۵۰۰ نویسه می‌تواند
 # ── ثبت‌نام‌ها و خروجی‌ها ──
 ADMIN_REGS_HEADER = "📋 <b>ثبت‌نام‌های «{title}»</b>\n\n"
 
+# ── ادمین‌های گسترده (نقش جدا از ADMIN_IDS) ──
+LBL_ADMIN_WIDE = "🛡 ادمین‌های گسترده"
+LBL_WIDE_ADMIN_ADD = "➕ افزودن ادمین گسترده"
+WIDE_ADMINS_TITLE = "🛡 <b>مدیریت ادمین‌های گسترده</b>"
+WIDE_ADMINS_EMPTY = "هنوز ادمین گسترده‌ای ساخته نشده است."
+WIDE_ADMIN_ADD_PROMPT = (
+    "شناسهٔ عددی تلگرام فرد را بفرستید. او می‌تواند با /id شناسه‌اش را پیدا کند.\n\n"
+    "برای همین شناسه یک دعوت یکتا و یک‌بارمصرف ساخته می‌شود؛ رمز خام فقط همین بار نمایش داده می‌شود."
+)
+WIDE_ADMIN_INVITE_PENDING = "ابتدا شناسهٔ دعوت فعلی را بفرستید یا «بازگشت» را بزنید."
+WIDE_ADMIN_INVITE_CREATED = (
+    "✅ دعوت ساخته شد و فقط برای شناسهٔ <code>{user_id}</code> معتبر است.\n\n"
+    "🔑 رمز یک‌بارمصرف را خصوصی به همان فرد بدهید:\n<code>{token}</code>\n\n"
+    "فرد باید ابتدا ربات را استارت کند، سپس بفرستد: <code>/wideadmin {token}</code>"
+)
+WIDE_ADMIN_ID_INVALID = "شناسه باید عدد صحیح مثبت باشد؛ دوباره بفرستید."
+WIDE_ADMIN_IS_OWNER = "این شناسه از قبل ادمین اصلی است و نباید نقش محدودتری بگیرد."
+WIDE_ADMIN_ALREADY_EXISTS = "این کاربر از قبل ادمین گسترده است."
+WIDE_ADMIN_REVOKED = (
+    "دسترسی ادمین گسترده لغو شد. لینک‌هایش حذف نمی‌شوند و فقط ادمین اصلی به آن‌ها دسترسی دارد."
+)
+WIDE_ADMIN_INVITE_INVALID = "رمز دعوت معتبر نیست یا قبلاً استفاده شده است."
+WIDE_ADMIN_ACTIVATED = "✅ دسترسی ادمین گسترده فعال شد. لینک‌ها و آمار شما از /channels در دسترس‌اند."
+WIDE_ADMIN_ACTIVATION_NOTICE = (
+    "✅ ادمین گسترده با شناسهٔ <code>{user_id}</code> فعال شد؛ فهرست دسترسی‌ها به‌روز شده است."
+)
+WIDE_ADMIN_NO_ACCESS = (
+    "برای این بخش دسترسی ندارید. اگر دعوت گرفته‌اید، رمز را با /wideadmin رمز وارد کنید."
+)
+WIDE_ADMIN_USAGE = (
+    "برای فعال‌کردن دعوت: <code>/wideadmin رمز</code>؛ برای پنل لینک‌های خود: <code>/channels</code>."
+)
+LBL_WIDE_ADMIN_REVOKE = "🚫 لغو دسترسی {user_id}"
+WIDE_ADMIN_LINKS_TITLE = "📣 <b>رفرال‌های شما</b>"
+WIDE_ADMIN_LINKS_HINT = "فقط لینک‌های ساخته‌شده یا واگذارشده به حساب شما در این فهرست‌اند."
+WIDE_ADMIN_LINKS_EMPTY = "هنوز لینکی ندارید؛ با دکمهٔ ساخت لینک، اولین رفرال را بسازید."
+LBL_WIDE_LINK_CREATE = "➕ ساخت لینک رفرال"
+WIDE_LINK_LABEL_PROMPT = "برچسب لینک رفرال را بفرستید (مثلاً نام کمپین یا کانال)."
+WIDE_LINK_LABEL_PENDING = "ابتدا برچسب لینک فعلی را بفرستید یا «بازگشت» را بزنید."
+WIDE_LINK_ACCESS_DENIED = "این لینک به حساب شما تعلق ندارد."
+WIDE_LINK_OWNER_LINE = "\n👤 مسئول لینک: {owner}"
+LBL_ADS_ASSIGN = "👤 واگذاری لینک به ادمین گسترده"
+LBL_ADS_ASSIGN_NONE = "↩️ بازگرداندن به ادمین اصلی"
+WIDE_OWNER_SET_DONE = "مالکیت دسترسی این لینک به‌روزرسانی شد."
+
 # ── تبلیغات و رفرال (لینک‌های اسم‌دار) ──
 LBL_ADMIN_ADS = "📣 تبلیغات و رفرال"
 LBL_ADS_NEW = "➕ لینک رفرال جدید"
@@ -214,6 +259,7 @@ ADS_NEW_PROMPT = (
     " به شما داده می‌شود؛ استارت‌ها و قیف ثبت‌نام به همین برچسب نسبت داده می‌شود."
 )
 ADS_LABEL_EMPTY = "برچسب خالی است؛ دوباره تلاش کنید."
+ADS_LABEL_PENDING = "ابتدا برچسب لینک فعلی را بفرستید یا «بازگشت» را بزنید."
 ADS_CREATED_TEXT = (
     "✅ لینک رفرال ساخته شد: <b>{label}</b>\n\n"
     "🔗 لینک کامل:\n<code>{url}</code>\n\n"
@@ -222,6 +268,14 @@ ADS_CREATED_TEXT = (
     "\n🔑 رمز ورود بخش کانال‌ها (برای ادمین کانال):\n<code>{phrase}</code>"
 )
 ADS_NOT_FOUND = "این لینک یافت نشد."
+LBL_ADS_DELETE = "🗑 حذف دائمی لینک"
+LBL_ADS_DELETE_CONFIRM = "⚠️ بله، حذف دائمی شود"
+ADS_DELETE_PROMPT = (
+    "⚠️ <b>حذف دائمی لینک «{label}»</b>\n\n"
+    "لینک و دسترسی مدیران کانال حذف می‌شود و قابل بازگردانی نیست. "
+    "سوابق ثبت‌نام و انتساب first-touch نگه داشته می‌شوند."
+)
+ADS_DELETE_DONE = "لینک حذف شد؛ سوابق ثبت‌نام و انتساب first-touch حفظ شده‌اند."
 
 # ── بخش کانال‌ها (/channels) — دسترسی فقط-آماری ادمین‌های کانال ──
 CH_TITLE = "📡 <b>کانال‌های شما</b>"
@@ -287,6 +341,19 @@ ADMIN_RANGE_CUSTOM_PROMPT = (
     "(طرف خالی = از ابتدا / تا امروز)"
 )
 ADMIN_RANGE_INVALID = "فرمت بازه درست نیست؛ مثال: <code>۱۴۰۵/۰۷/۰۱ تا ۱۴۰۵/۰۷/۱۵</code>"
+ADMIN_EXPORT_RANGE_PROMPT = (
+    "برای خروجی «{title}»، بازهٔ شروع ثبت‌نام را با تاریخ و ساعت بفرستید:\n"
+    "<code>۱۴۰۵/۰۷/۰۱ ۰۸:۰۰ تا ۱۴۰۵/۰۷/۳۰ ۲۳:۵۹</code>\n"
+    "تاریخ شمسی/میلادی و ارقام فارسی/انگلیسی پذیرفته می‌شوند. فیلتر بر اساس زمان شروع فرم است "
+    "(ساعت محلی سرور). برای همهٔ تاریخ‌ها، دکمهٔ پایین را بزنید."
+)
+ADMIN_EXPORT_RANGE_INVALID = (
+    "فرمت بازه درست نیست. دو تاریخ و ساعت وارد کنید؛ تاریخ پایان نباید قبل از شروع باشد.\n"
+    "مثال: <code>۱۴۰۵/۰۷/۰۱ ۰۸:۰۰ تا ۱۴۰۵/۰۷/۳۰ ۲۳:۵۹</code>"
+)
+ADMIN_EXPORT_EMPTY = "در این بازه موردی برای خروجی پیدا نشد."
+ADMIN_EXPORT_ALL = "📥 خروجی همهٔ تاریخ‌ها"
+ADMIN_EXPORT_CANCEL = "🔙 بازگشت به پنل"
 ADMIN_REGS_MSG_HEADER = "📋 ثبت‌نام‌های «{title}» — {range_desc}\n\n"
 ADMIN_REGS_MSG_FOOTER = "\n\n— کل: {total} | کامل: {done} | نیمه‌کاره: {partial}"
 ADMIN_REGS_EMPTY = "در این بازه ثبت‌نامی نیست."
@@ -297,6 +364,8 @@ LBL_ADMIN_REGS_XLSX = "📗 اکسل همه"
 LBL_ADMIN_REGS_XLSX_COMPLETE = "📗 اکسل کامل‌ها"
 LBL_ADMIN_USERS_CSV = "👥 CSV کاربران استارت‌کرده"
 LBL_ADMIN_USERS_XLSX = "📗 اکسل کاربران"
+LBL_ADMIN_CONTACT_LEADS_XLSX = "📞 خروجی اکسل لید تماس"
+LBL_ADMIN_REG_STARTS_XLSX = "📝 خروجی اکسل استارت‌های ثبت‌نام"
 LBL_RANGE_TODAY = "امروز"
 LBL_RANGE_7 = "۷ روز"
 LBL_RANGE_30 = "۳۰ روز"
