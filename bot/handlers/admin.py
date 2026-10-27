@@ -9,7 +9,7 @@ import io
 import logging
 from datetime import date, datetime, timedelta
 
-from telegram import InputFile, Update
+from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -37,16 +37,21 @@ from bot.constants import (
     PATTERN_ADMIN_ADS_NEW,
     PATTERN_ADMIN_ADS_REGS,
     PATTERN_ADMIN_ADS_REGS_CSV,
+    PATTERN_ADMIN_ADS_REGS_XLSX,
     PATTERN_ADMIN_ADS_RESET_PHRASE,
     PATTERN_ADMIN_ADS_TOGGLE,
     PATTERN_ADMIN_ADS_VIEW,
+    PATTERN_ADMIN_ADS_XLSX,
     PATTERN_ADMIN_BCAST,
     PATTERN_ADMIN_BCAST_GO,
     PATTERN_ADMIN_BCAST_NO,
     PATTERN_ADMIN_RANGE,
     PATTERN_ADMIN_REGS,
     PATTERN_ADMIN_REGS_CSV,
+    PATTERN_ADMIN_REGS_CSV_COMPLETE,
     PATTERN_ADMIN_REGS_MSG,
+    PATTERN_ADMIN_REGS_XLSX,
+    PATTERN_ADMIN_REGS_XLSX_COMPLETE,
     PATTERN_ADMIN_REMINDERS,
     PATTERN_ADMIN_SEM_DELETE,
     PATTERN_ADMIN_SEM_DELETE2,
@@ -56,6 +61,8 @@ from bot.constants import (
     PATTERN_ADMIN_SEM_OPEN,
     PATTERN_ADMIN_SEM_PAGE,
     PATTERN_ADMIN_SEMS,
+    PATTERN_ADMIN_USERS_CSV,
+    PATTERN_ADMIN_USERS_XLSX,
     RANGE_STATE_KEY,
     REF_STATE_KEY,
     REGS_STATE_KEY,
@@ -63,6 +70,7 @@ from bot.constants import (
 )
 from bot.keyboards import admin as keyboards
 from bot.services import referrals, reminders, seminars, sender, settings, users
+from bot.utils.excel import xlsx_bytes, xlsx_from_csv
 from bot.utils.jalali import format_jalali, parse_jalali_text
 from bot.utils.persian import to_en, to_fa
 
@@ -256,7 +264,7 @@ def _seminar_text(seminar: dict) -> str:
             ("رشته", funnel[seminars.STEP_FIELD]),
             ("شهر", funnel[seminars.STEP_CITY]),
             ("تلفن", funnel[seminars.STEP_PHONE]),
-            ("تایید شماره", funnel[seminars.STEP_DONE]),
+            ("شماره جایگزین", funnel[seminars.STEP_DONE]),
         ]
         lines += ["", "قیف: " + " ← ".join(f"{n} {to_fa(v)}" for n, v in steps)]
     return "\n".join(lines)
@@ -567,8 +575,8 @@ async def admin_ads_regs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             _esc(reg["grade"] or "—"),
             _esc(reg["field"] or "—"),
             _esc(reg["city"] or "—"),
-            _esc(reg["phone"] or "—"),
-            _esc(reg["sms_phone"] or "—"),
+            f"تلگرام: {_esc(reg['phone'] or '—')}",
+            f"شماره جایگزین: {_esc(reg['alternate_phone'] or '—')}",
         ]
         status = "✅" if reg["is_complete"] else "⏳"
         lines.append(" • ".join(parts) + f" {status} — {_esc(reg['seminar_title'] or '—')}")
@@ -594,6 +602,24 @@ async def admin_ads_regs_csv(update: Update, context: ContextTypes.DEFAULT_TYPE)
         chat_id=update.effective_chat.id,
         document=io.BytesIO(csv_bytes),
         filename=f"ref-{link['code']}-regs.csv",
+        caption=content.ADS_REGS_CAPTION.format(label=link["label"]),
+    )
+
+
+async def admin_ads_regs_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """فایل Excel ثبت‌نامی‌های یک لینک رفرال."""
+    if not await _require_admin(update, context):
+        return
+    link = referrals.get_link(int(context.match.group(1)))
+    if link is None:
+        await update.callback_query.answer(content.ADS_NOT_FOUND, show_alert=True)
+        return
+    await update.callback_query.answer("در حال ساخت فایل…")
+    document = xlsx_from_csv(referrals.link_regs_csv(link), sheet_name="ثبت‌نام‌ها")
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=io.BytesIO(document),
+        filename=f"ref-{link['code']}-regs.xlsx",
         caption=content.ADS_REGS_CAPTION.format(label=link["label"]),
     )
 
@@ -647,6 +673,21 @@ async def admin_ads_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         chat_id=update.effective_chat.id,
         document=io.BytesIO(csv_bytes),
         filename="nikmanesh-ads.csv",
+        caption=content.ADS_CAPTION,
+    )
+
+
+async def admin_ads_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """فایل Excel آمار تبلیغات."""
+    if not await _require_admin(update, context):
+        return
+    await update.callback_query.answer("در حال ساخت فایل…")
+    username = context.bot.username or "bot"
+    document = xlsx_from_csv(referrals.ads_csv(username), sheet_name="آمار تبلیغات")
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=io.BytesIO(document),
+        filename="nikmanesh-ads.xlsx",
         caption=content.ADS_CAPTION,
     )
 
@@ -968,8 +1009,8 @@ async def admin_regs_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             _esc(reg["grade"] or "—"),
             _esc(reg["field"] or "—"),
             _esc(reg["city"] or "—"),
-            _esc(reg["phone"] or "—"),
-            _esc(reg["sms_phone"] or "—"),
+            f"تلگرام: {_esc(reg['phone'] or '—')}",
+            f"شماره جایگزین: {_esc(reg['alternate_phone'] or '—')}",
         ]
         status = "✅" if reg["is_complete"] else "⏳"
         lines.append(" • ".join(parts) + f" {status}")
@@ -987,7 +1028,32 @@ async def admin_regs_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def admin_regs_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """خروجی CSV سازگار با Excel فارسی (BOM + تاریخ ISO)."""
+    """CSV همه‌ی ثبت‌نام‌های سمینار (کامل و نیمه‌کاره)."""
+    await _admin_regs_export(update, context, completed_only=False, excel=False)
+
+
+async def admin_regs_csv_complete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """CSV فقط ثبت‌نام‌های کامل‌شده‌ی سمینار."""
+    await _admin_regs_export(update, context, completed_only=True, excel=False)
+
+
+async def admin_regs_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """فایل واقعی Excel شامل همه‌ی ثبت‌نام‌های سمینار."""
+    await _admin_regs_export(update, context, completed_only=False, excel=True)
+
+
+async def admin_regs_xlsx_complete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """فایل واقعی Excel فقط برای ثبت‌نام‌های کامل‌شده."""
+    await _admin_regs_export(update, context, completed_only=True, excel=True)
+
+
+async def _admin_regs_export(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    completed_only: bool,
+    excel: bool,
+) -> None:
     if not await _require_admin(update, context):
         return
     sid = int(update.callback_query.data.split(":")[3])
@@ -998,32 +1064,109 @@ async def admin_regs_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
     await update.callback_query.answer()
     since, until = _range_dates(state)
-    regs = seminars.list_registrations(sid, since=since, until=until)
+    regs = seminars.list_registrations(sid, since=since, until=until, completed_only=completed_only)
+    if not regs:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=content.ADMIN_REGS_EMPTY
+        )
+        return
 
-    buffer = io.StringIO()
-    buffer.write("\ufeff")  # BOM برای نمایش درست فارسی در Excel
-    writer = csv.writer(buffer)
-    writer.writerow(
-        ["ردیف", "نام", "پایه", "رشته", "شهر", "شماره تلگرام", "شماره پیامک", "وضعیت", "تاریخ ثبت"]
+    headers = [
+        "ردیف",
+        "نام",
+        "پایه",
+        "رشته",
+        "شهر",
+        "شماره تلگرام",
+        "شماره جایگزین",
+        "وضعیت",
+        "تاریخ ثبت",
+    ]
+    rows = [
+        [
+            index,
+            reg["name"],
+            reg["grade"],
+            reg["field"],
+            reg["city"],
+            reg["phone"],
+            reg["alternate_phone"],
+            "کامل" if reg["is_complete"] else "نیمه‌کاره",
+            reg["created_at"],
+        ]
+        for index, reg in enumerate(regs, 1)
+    ]
+    suffix = "completed" if completed_only else "all"
+    if excel:
+        document = xlsx_bytes(headers, rows, sheet_name="ثبت‌نام‌ها")
+        filename = f"seminar-{sid}-registrations-{suffix}.xlsx"
+    else:
+        buffer = io.StringIO()
+        buffer.write("\ufeff")  # BOM برای نمایش درست فارسی در Excel
+        writer = csv.writer(buffer)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        document = buffer.getvalue().encode("utf-8")
+        filename = f"seminar-{sid}-registrations-{suffix}.csv"
+
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=io.BytesIO(document),
+        filename=filename,
     )
-    for i, reg in enumerate(regs, 1):
+
+
+async def admin_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """CSV همه‌ی افرادی که ربات را استارت کرده‌اند."""
+    if not await _require_admin(update, context):
+        return
+    await update.callback_query.answer()
+    rows = users.list_users()
+    buffer = io.StringIO()
+    buffer.write("\ufeff")
+    writer = csv.writer(buffer)
+    writer.writerow(["شناسه تلگرام", "نام", "نام کاربری", "زمان شروع", "آخرین بازدید"])
+    for row in rows:
         writer.writerow(
             [
-                i,
-                reg["name"],
-                reg["grade"],
-                reg["field"],
-                reg["city"],
-                reg["phone"],
-                reg["sms_phone"],
-                "کامل" if reg["is_complete"] else "نیمه‌کاره",
-                reg["created_at"],
+                row["user_id"],
+                row["first_name"],
+                row["username"],
+                row["started_at"],
+                row["last_seen"],
             ]
         )
     await context.bot.send_document(
         chat_id=update.effective_chat.id,
-        document=InputFile(io.BytesIO(buffer.getvalue().encode("utf-8"))),
-        filename=f"seminar-{sid}-regs.csv",
+        document=io.BytesIO(buffer.getvalue().encode("utf-8")),
+        filename="users-started.csv",
+    )
+
+
+async def admin_users_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """فایل Excel برای همه‌ی افرادی که ربات را استارت کرده‌اند."""
+    if not await _require_admin(update, context):
+        return
+    await update.callback_query.answer()
+    rows = users.list_users()
+    document = xlsx_bytes(
+        ["شناسه تلگرام", "نام", "نام کاربری", "زمان شروع", "آخرین بازدید"],
+        [
+            [
+                row["user_id"],
+                row["first_name"],
+                row["username"],
+                row["started_at"],
+                row["last_seen"],
+            ]
+            for row in rows
+        ],
+        sheet_name="کاربران",
+    )
+    await context.bot.send_document(
+        chat_id=update.effective_chat.id,
+        document=io.BytesIO(document),
+        filename="users-started.xlsx",
     )
 
 
@@ -1211,14 +1354,25 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(admin_ads_msg, pattern=PATTERN_ADMIN_ADS_MSG))
     app.add_handler(CallbackQueryHandler(admin_ads_regs, pattern=PATTERN_ADMIN_ADS_REGS))
     app.add_handler(CallbackQueryHandler(admin_ads_regs_csv, pattern=PATTERN_ADMIN_ADS_REGS_CSV))
+    app.add_handler(CallbackQueryHandler(admin_ads_regs_xlsx, pattern=PATTERN_ADMIN_ADS_REGS_XLSX))
     app.add_handler(
         CallbackQueryHandler(admin_ads_reset_phrase, pattern=PATTERN_ADMIN_ADS_RESET_PHRASE)
     )
     app.add_handler(CallbackQueryHandler(admin_ads_kick, pattern=PATTERN_ADMIN_ADS_KICK))
     app.add_handler(CallbackQueryHandler(admin_ads_csv, pattern=PATTERN_ADMIN_ADS_CSV))
+    app.add_handler(CallbackQueryHandler(admin_ads_xlsx, pattern=PATTERN_ADMIN_ADS_XLSX))
     app.add_handler(CallbackQueryHandler(admin_regs, pattern=PATTERN_ADMIN_REGS))
     app.add_handler(CallbackQueryHandler(admin_regs_msg, pattern=PATTERN_ADMIN_REGS_MSG))
     app.add_handler(CallbackQueryHandler(admin_regs_csv, pattern=PATTERN_ADMIN_REGS_CSV))
+    app.add_handler(
+        CallbackQueryHandler(admin_regs_csv_complete, pattern=PATTERN_ADMIN_REGS_CSV_COMPLETE)
+    )
+    app.add_handler(CallbackQueryHandler(admin_regs_xlsx, pattern=PATTERN_ADMIN_REGS_XLSX))
+    app.add_handler(
+        CallbackQueryHandler(admin_regs_xlsx_complete, pattern=PATTERN_ADMIN_REGS_XLSX_COMPLETE)
+    )
+    app.add_handler(CallbackQueryHandler(admin_users_csv, pattern=PATTERN_ADMIN_USERS_CSV))
+    app.add_handler(CallbackQueryHandler(admin_users_xlsx, pattern=PATTERN_ADMIN_USERS_XLSX))
     app.add_handler(CallbackQueryHandler(admin_range_quick, pattern=PATTERN_ADMIN_RANGE))
     app.add_handler(CallbackQueryHandler(admin_bcast, pattern=PATTERN_ADMIN_BCAST))
     app.add_handler(CallbackQueryHandler(admin_bcast_go, pattern=PATTERN_ADMIN_BCAST_GO))
