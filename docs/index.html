@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>دانلود پروژه و راهنماها</title>
+  <style>
+    :root {
+      --deep: #104650;
+      --teal: #127a78;
+      --gold: #d89a2b;
+      --ink: #18363d;
+      --muted: #587077;
+      --bg: #eef5f3;
+      --card: #ffffff;
+      --border: #d4e3df;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+      line-height: 1.9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 18px;
+    }
+    .wrap { width: 100%; max-width: 860px; }
+    .hero {
+      background: var(--deep);
+      color: #fff;
+      border-radius: 18px 18px 0 0;
+      padding: 32px 36px 26px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      left: -70px;
+      top: -80px;
+      width: 240px;
+      height: 240px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 50%;
+    }
+    .badge {
+      display: inline-block;
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 999px;
+      padding: 2px 14px;
+      font-size: 12px;
+      color: #bfdcd8;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 25px; line-height: 1.5; }
+    .hero p { margin: 0; color: #bfdcd8; font-size: 14.5px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 0;
+      border-radius: 0 0 18px 18px;
+      padding: 30px 36px 32px;
+      box-shadow: 0 18px 45px rgba(16,70,80,.08);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .file-card {
+      background: #f8fbfa;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .file-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .pdf-icon {
+      flex: 0 0 48px;
+      height: 54px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      color: #b4472f;
+      font-weight: bold;
+      font-size: 12px;
+      letter-spacing: .5px;
+    }
+    .file-head h2 { margin: 0; font-size: 16px; color: var(--deep); }
+    .file-head small { color: var(--muted); font-size: 12px; }
+    .file-card p {
+      margin: 0 0 18px;
+      font-size: 13px;
+      color: var(--muted);
+      flex: 1;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--teal);
+      color: #fff;
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: bold;
+      padding: 12px 16px;
+      border-radius: 10px;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { background: #0e6664; transform: translateY(-1px); }
+    .btn.secondary {
+      background: #fff;
+      color: var(--deep);
+      border: 1px solid var(--border);
+      font-size: 12.5px;
+      font-weight: normal;
+      margin-top: 9px;
+      padding: 9px 16px;
+    }
+    .btn.secondary:hover { background: #eef5f3; }
+    .package-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 22px;
+      margin-bottom: 20px;
+      padding: 19px 20px;
+      background: #edf7f3;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .package-card h2 { margin: 0 0 4px; font-size: 16px; color: var(--deep); }
+    .package-card p { margin: 0; font-size: 12.8px; color: var(--muted); }
+    .package-card code {
+      font-family: Consolas, "Courier New", monospace;
+      direction: ltr;
+      unicode-bidi: isolate;
+      color: var(--deep);
+    }
+    .btn.package-btn { width: auto; flex: 0 0 auto; padding: 11px 20px; }
+    .note {
+      margin-top: 0;
+      background: #fff8e9;
+      border: 1px solid #efd9a8;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 12.8px;
+      color: #7a5a16;
+    }
+    .note code, .file-card code {
+      font-family: Consolas, "Courier New", monospace;
+      direction: ltr;
+      unicode-bidi: isolate;
+      color: var(--deep);
+    }
+    .foot {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 12.5px;
+      color: var(--muted);
+      text-align: center;
+    }
+    @media (max-width: 680px) {
+      .hero, .panel { padding-right: 22px; padding-left: 22px; }
+      .grid { grid-template-columns: 1fr; }
+      .package-card { align-items: stretch; flex-direction: column; }
+      .btn.package-btn { width: 100%; }
+      h1 { font-size: 21px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <span class="badge">نسخه کوتاه · آبان ۱۴۰۵</span>
+      <h1>پروژه نهایی و راهنماها</h1>
+      <p>بستهٔ کامل پروژه به‌صورت ZIP، همراه با دو راهنمای جداگانه</p>
+    </section>
+
+    <section class="panel">
+      <section class="package-card">
+        <div>
+          <h2>بسته نهایی پروژه</h2>
+          <p>سورس، تست‌ها، فایل‌های راه‌اندازی و هر دو راهنمای PDF؛ فایل محرمانهٔ <code>.env</code> داخل بسته نیست.</p>
+        </div>
+        <a class="btn package-btn" href="/tizgam-seminar-bot-final.zip">دانلود ZIP پروژه</a>
+      </section>
+
+      <div class="grid">
+        <article class="file-card">
+          <div class="file-head">
+            <div class="pdf-icon">PDF</div>
+            <div>
+              <h2>راهنمای ادمین ربات</h2>
+              <small>۲ صفحه A4 · فارسی و راست‌به‌چپ</small>
+            </div>
+          </div>
+          <p>پنل <code>/admin</code>، CSV و Excel واقعی (`.xlsx`) برای کاربران، ثبت‌نام‌ها و تبلیغات، فیلتر تاریخ شمسی، شماره جایگزین، پشتیبان‌گیری خودکار و مدیریت لینک‌ها.</p>
+          <a class="btn" href="/admin-channel-guide.pdf">دانلود PDF ادمین</a>
+          <a class="btn secondary" href="/admin-channel-guide.md">متن قابل ویرایش (Markdown)</a>
+        </article>
+
+        <article class="file-card">
+          <div class="file-head">
+            <div class="pdf-icon">PDF</div>
+            <div>
+              <h2>راهنمای مدیران کانال‌ها</h2>
+              <small>۱ صفحه A4 · فارسی و راست‌به‌چپ</small>
+            </div>
+          </div>
+          <p>ورود با <code>/channels</code>، افزودن چندین کانال، آمار تجمیعی، حریم خصوصی و رفع اشکال.</p>
+          <a class="btn" href="/channel-admin-guide.pdf">دانلود PDF کانال‌ها</a>
+          <a class="btn secondary" href="/channel-admin-guide.md">متن قابل ویرایش (Markdown)</a>
+        </article>
+      </div>
+
+      <div class="note">
+        قابلیت: هر مدیر کانال می‌تواند با دکمهٔ <strong>«➕ افزودن کانال»</strong> یا دستور
+        <code>/channels CODE</code> چندین کانال به فهرست خود اضافه کند؛ کانال‌های قبلی حذف نمی‌شوند.
+      </div>
+
+      <div class="foot">تهیه‌شده توسط توسعه‌دهندهٔ ربات.</div>
+    </section>
+  </main>
+</body>
+</html>
