@@ -26,12 +26,17 @@ from bot.config import content
 from bot.config.settings import get_settings
 from bot.constants import (
     ABOUT_STATE_KEY,
+    ADMIN_REF_PROMPT_CHAT_ID_KEY,
+    ADMIN_REF_PROMPT_MESSAGE_ID_KEY,
     BCAST_STATE_KEY,
     EDIT_STATE_KEY,
+    EXPORT_RANGE_STATE_KEY,
     NEW_STATE_KEY,
     PATTERN_ADMIN_ABOUT,
     PATTERN_ADMIN_ADS,
     PATTERN_ADMIN_ADS_CSV,
+    PATTERN_ADMIN_ADS_DELETE,
+    PATTERN_ADMIN_ADS_DELETE2,
     PATTERN_ADMIN_ADS_KICK,
     PATTERN_ADMIN_ADS_MSG,
     PATTERN_ADMIN_ADS_NEW,
@@ -45,6 +50,10 @@ from bot.constants import (
     PATTERN_ADMIN_BCAST,
     PATTERN_ADMIN_BCAST_GO,
     PATTERN_ADMIN_BCAST_NO,
+    PATTERN_ADMIN_EXPORT_ALL,
+    PATTERN_ADMIN_EXPORT_CANCEL,
+    PATTERN_ADMIN_EXPORT_LEADS,
+    PATTERN_ADMIN_EXPORT_STARTS,
     PATTERN_ADMIN_RANGE,
     PATTERN_ADMIN_REGS,
     PATTERN_ADMIN_REGS_CSV,
@@ -67,9 +76,13 @@ from bot.constants import (
     REF_STATE_KEY,
     REGS_STATE_KEY,
     SEMINAR_FIELDS,
+    WIDE_INVITE_PROMPT_CHAT_ID_KEY,
+    WIDE_INVITE_PROMPT_MESSAGE_ID_KEY,
+    WIDE_INVITE_STATE_KEY,
 )
 from bot.keyboards import admin as keyboards
-from bot.services import referrals, reminders, seminars, sender, settings, users
+from bot.services import referrals, reminders, seminars, sender, settings, users, wide_admins
+from bot.utils.dates import parse_datetime_text
 from bot.utils.excel import xlsx_bytes, xlsx_from_csv
 from bot.utils.jalali import format_jalali, parse_jalali_text
 from bot.utils.persian import to_en, to_fa
@@ -133,6 +146,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """ورود به پنل: /admin"""
     if not await _require_admin(update, context):
         return
+    context.user_data.pop(EXPORT_RANGE_STATE_KEY, None)
     await navigation.render_screen(
         update, context, text=_overview_text(), reply_markup=keyboards.overview()
     )
@@ -209,7 +223,13 @@ async def _clear_admin_states(context) -> None:
         RANGE_STATE_KEY,
         BCAST_STATE_KEY,
         ABOUT_STATE_KEY,
+        EXPORT_RANGE_STATE_KEY,
         REF_STATE_KEY,
+        ADMIN_REF_PROMPT_CHAT_ID_KEY,
+        ADMIN_REF_PROMPT_MESSAGE_ID_KEY,
+        WIDE_INVITE_STATE_KEY,
+        WIDE_INVITE_PROMPT_CHAT_ID_KEY,
+        WIDE_INVITE_PROMPT_MESSAGE_ID_KEY,
     ):
         context.user_data.pop(key, None)
 
@@ -387,12 +407,23 @@ def _ads_link_detail_text(link: dict, bot_username: str) -> str:
     pct = (f["completed"] * 100 / f["starts"]) if f["starts"] else 0.0
     url = referrals.link_url(bot_username, link["code"])
     status = "✅ فعال" if link["is_active"] else "⏸ غیرفعال"
+    owner_id = link.get("owner_user_id")
+    if owner_id:
+        owner = next(
+            (item for item in wide_admins.list_wide_admins() if item["user_id"] == owner_id),
+            None,
+        )
+        owner_name = _esc((owner or {}).get("first_name") or str(owner_id))
+        owner_label = f"ادمین گستردهٔ {owner_name} ({owner_id})"
+    else:
+        owner_label = "ادمین اصلی"
     lines = [
         f"📣 <b>{_esc(link['label'])}</b>",
         "",
         f"🔗 لینک کامل: <code>{_esc(url)}</code>",
         f"🕒 ساخته شده: <code>{_fa_dt(link['created_at'])}</code>",
         f"🔘 وضعیت: {status}",
+        content.WIDE_LINK_OWNER_LINE.format(owner=owner_label),
         "",
         f"👥 تعداد ورودی (استارت): <b>{fa_num(f['starts'])}</b>",
         f"✅ ثبت‌نام کامل: <b>{fa_num(f['completed'])}</b>"
@@ -480,13 +511,55 @@ async def admin_ads_view(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
+async def admin_ads_delete_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """تأیید دو مرحله‌ای حذف دائمی لینک؛ فقط ادمین اصلی."""
+    if not await _require_admin(update, context):
+        return
+    link_id = int(context.match.group(1))
+    link = referrals.get_link(link_id)
+    if link is None:
+        await update.callback_query.answer(content.ADS_NOT_FOUND, show_alert=True)
+        return
+    await update.callback_query.answer()
+    await navigation.render_screen(
+        update,
+        context,
+        text=content.ADS_DELETE_PROMPT.format(label=_esc(link["label"])),
+        reply_markup=keyboards.ads_delete_confirm(link),
+    )
+
+
+async def admin_ads_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """حذف دائمی لینک پس از تأیید؛ ثبت‌نام‌ها و first-touch حفظ می‌شوند."""
+    if not await _require_admin(update, context):
+        return
+    link_id = int(context.match.group(1))
+    if not referrals.delete_link(link_id):
+        await update.callback_query.answer(content.ADS_NOT_FOUND, show_alert=True)
+        return
+    await update.callback_query.answer(content.ADS_DELETE_DONE, show_alert=True)
+    await navigation.render_screen(
+        update,
+        context,
+        text=_ads_hub_text(),
+        reply_markup=keyboards.ads(_ads_link_rows()),
+    )
+
+
 async def admin_ads_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """شروع ساخت لینک رفرال: دریافت برچسب به‌صورت پیام."""
     if not await _require_admin(update, context):
         return
+    if context.user_data.get(REF_STATE_KEY):
+        await update.callback_query.answer(content.ADS_LABEL_PENDING, show_alert=True)
+        return
     await update.callback_query.answer()
     await _clear_admin_states(context)
     context.user_data[REF_STATE_KEY] = True
+    prompt_message = update.callback_query.message
+    if prompt_message is not None:
+        context.user_data[ADMIN_REF_PROMPT_CHAT_ID_KEY] = prompt_message.chat_id
+        context.user_data[ADMIN_REF_PROMPT_MESSAGE_ID_KEY] = prompt_message.message_id
     await navigation.render_screen(
         update, context, text=content.ADS_NEW_PROMPT, reply_markup=keyboards.ads_prompt()
     )
@@ -494,13 +567,14 @@ async def admin_ads_new(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def _handle_ads_label_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """دریافت برچسب لینک جدید از مدیر (state موقت REF_STATE_KEY)."""
-    context.user_data.pop(REF_STATE_KEY, None)
     label = (update.message.text or "").strip()
     if not label:
+        context.user_data[REF_STATE_KEY] = True
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text=content.ADS_LABEL_EMPTY
         )
         return
+    context.user_data.pop(REF_STATE_KEY, None)
     link = referrals.create_link(label)
     username = context.bot.username or "bot"
     url = referrals.link_url(username, link["code"])
@@ -512,12 +586,15 @@ async def _handle_ads_label_input(update: Update, context: ContextTypes.DEFAULT_
         ),
         parse_mode="HTML",
     )
-    # ورود مستقیم به صفحه‌ی مدیریت همین لینک (لینک کامل + آمار)
-    await navigation.render_screen(
+    prompt_chat_id = context.user_data.pop(ADMIN_REF_PROMPT_CHAT_ID_KEY, None)
+    prompt_message_id = context.user_data.pop(ADMIN_REF_PROMPT_MESSAGE_ID_KEY, None)
+    await navigation.render_saved_screen(
         update,
         context,
-        text=_ads_link_detail_text(link, username),
-        reply_markup=keyboards.ads_link_detail(link),
+        chat_id=prompt_chat_id,
+        message_id=prompt_message_id,
+        text=_ads_hub_text(),
+        reply_markup=keyboards.ads(_ads_link_rows()),
     )
 
 
@@ -1171,6 +1248,231 @@ async def admin_users_xlsx(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 # ---------------------------------------------------------------------------
+# خروجی‌های سراسری اکسل: لیدهای دارای شماره و شروع فرم ثبت‌نام
+# ---------------------------------------------------------------------------
+
+
+_EXPORT_KIND_TITLES = {
+    "leads": "لید تماس",
+    "starts": "شروع‌های ثبت‌نام",
+}
+
+_EXPORT_STEP_LABELS = {
+    seminars.STEP_NAME: "در انتظار نام",
+    seminars.STEP_GRADE: "در انتظار انتخاب پایه",
+    seminars.STEP_FIELD: "در انتظار انتخاب رشته",
+    seminars.STEP_CITY: "در انتظار ثبت شهر",
+    seminars.STEP_PHONE: "در انتظار ثبت شماره تماس",
+    seminars.STEP_ALTERNATE_PHONE: "در انتظار تأیید/شماره جایگزین",
+    seminars.STEP_DONE: "تکمیل‌شده",
+}
+
+
+def _parse_export_datetime_range(raw: str) -> tuple[datetime, datetime] | None:
+    """پارس بازهٔ شمسی/میلادی با ساعت؛ دقیقهٔ پایان هم کامل در بازه است."""
+    left, separator, right = (raw or "").partition("تا")
+    if not separator:
+        return None
+    left, right = to_en(left).strip(), to_en(right).strip()
+    if not left or not right or not any(sep in left for sep in (" ", "T")):
+        return None
+    if not any(sep in right for sep in (" ", "T")):
+        return None
+    since, until = parse_datetime_text(left), parse_datetime_text(right)
+    if since is None or until is None or until < since:
+        return None
+    # زمان ورودی تا دقت دقیقه است؛ دقیقهٔ انتخاب‌شده را به طور کامل شامل کن.
+    return since, until + timedelta(minutes=1)
+
+
+def _export_datetime_text(value: str | None) -> str:
+    if not value:
+        return "—"
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value
+    return f"{to_fa(format_jalali(parsed.date()))} {to_fa(parsed.strftime('%H:%M'))}"
+
+
+def _export_workbook(kind: str, rows: list[dict]) -> tuple[bytes, str, str]:
+    if kind == "leads":
+        headers = [
+            "ردیف",
+            "شناسه تلگرام",
+            "نام",
+            "شماره تماس",
+            "شماره جایگزین",
+            "سمینار",
+            "پایه",
+            "رشته",
+            "شهر",
+            "وضعیت فرم",
+            "تاریخ و ساعت شروع ثبت‌نام",
+        ]
+        values = [
+            [
+                index,
+                row["user_id"],
+                row["name"] or row["telegram_first_name"] or "—",
+                row["phone"],
+                row["alternate_phone"],
+                row["seminar_title"] or "—",
+                row["grade"],
+                row["field"],
+                row["city"],
+                "کامل" if row["is_complete"] else "نیمه‌کاره",
+                _export_datetime_text(row["created_at"]),
+            ]
+            for index, row in enumerate(rows, 1)
+        ]
+        return (
+            xlsx_bytes(headers, values, sheet_name="لیدهای تماس"),
+            "contact-leads.xlsx",
+            "خروجی لیدهای دارای شماره تماس",
+        )
+
+    headers = [
+        "ردیف",
+        "شناسه تلگرام",
+        "نام ثبت‌شده",
+        "نام تلگرام",
+        "نام کاربری",
+        "سمینار",
+        "مرحله فعلی",
+        "شماره تماس",
+        "شماره جایگزین",
+        "وضعیت ثبت‌نام",
+        "تاریخ و ساعت شروع ثبت‌نام",
+    ]
+    values = [
+        [
+            index,
+            row["user_id"],
+            row["name"] or "—",
+            row["telegram_first_name"] or "—",
+            row["telegram_username"] or "—",
+            row["seminar_title"] or "—",
+            _EXPORT_STEP_LABELS.get(row["current_step"], row["current_step"] or "—"),
+            row["phone"] or "—",
+            row["alternate_phone"] or "—",
+            "کامل" if row["is_complete"] else "نیمه‌کاره",
+            _export_datetime_text(row["created_at"]),
+        ]
+        for index, row in enumerate(rows, 1)
+    ]
+    return (
+        xlsx_bytes(headers, values, sheet_name="شروع‌های ثبت‌نام"),
+        "registration-starts.xlsx",
+        "خروجی تمام شروع‌های فرم ثبت‌نام؛ شامل موارد نیمه‌کاره",
+    )
+
+
+async def _send_registration_export(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    kind: str,
+    since: datetime | None = None,
+    until_exclusive: datetime | None = None,
+) -> None:
+    if kind == "leads":
+        rows = seminars.list_contact_leads(since=since, until_exclusive=until_exclusive)
+    else:
+        rows = seminars.list_registration_starts(since=since, until_exclusive=until_exclusive)
+
+    if not rows:
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=content.ADMIN_EXPORT_EMPTY
+        )
+    else:
+        document, filename, caption = _export_workbook(kind, rows)
+        await context.bot.send_document(
+            chat_id=update.effective_chat.id,
+            document=io.BytesIO(document),
+            filename=filename,
+            caption=caption,
+        )
+
+    context.user_data.pop(EXPORT_RANGE_STATE_KEY, None)
+    await navigation.render_screen(
+        update,
+        context,
+        text=_overview_text(),
+        reply_markup=keyboards.overview(reminders_on=reminders.enabled()),
+    )
+
+
+async def admin_export_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """شروع انتخاب بازه برای یکی از دو خروجی اکسل."""
+    if not await _require_admin(update, context):
+        return
+    kind = update.callback_query.data.rsplit(":", 1)[-1]
+    if kind not in _EXPORT_KIND_TITLES:
+        await update.callback_query.answer()
+        return
+    await _clear_admin_states(context)
+    context.user_data[EXPORT_RANGE_STATE_KEY] = kind
+    await update.callback_query.answer()
+    await navigation.render_screen(
+        update,
+        context,
+        text=content.ADMIN_EXPORT_RANGE_PROMPT.format(title=_EXPORT_KIND_TITLES[kind]),
+        reply_markup=keyboards.export_range_prompt(kind),
+    )
+
+
+async def admin_export_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """ارسال خروجی بدون محدودیت تاریخ."""
+    if not await _require_admin(update, context):
+        return
+    kind = context.match.group(1)
+    await update.callback_query.answer()
+    await _send_registration_export(update, context, kind=kind)
+
+
+async def admin_export_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _require_admin(update, context):
+        return
+    context.user_data.pop(EXPORT_RANGE_STATE_KEY, None)
+    await update.callback_query.answer()
+    await navigation.render_screen(
+        update,
+        context,
+        text=_overview_text(),
+        reply_markup=keyboards.overview(reminders_on=reminders.enabled()),
+    )
+
+
+async def _handle_export_range_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    kind = context.user_data.get(EXPORT_RANGE_STATE_KEY)
+    if kind not in _EXPORT_KIND_TITLES:
+        context.user_data.pop(EXPORT_RANGE_STATE_KEY, None)
+        return
+    parsed = _parse_export_datetime_range(update.message.text or "")
+    if parsed is None:
+        await navigation.render_screen(
+            update,
+            context,
+            text=(
+                content.ADMIN_EXPORT_RANGE_INVALID
+                + "\n\n"
+                + content.ADMIN_EXPORT_RANGE_PROMPT.format(title=_EXPORT_KIND_TITLES[kind])
+            ),
+            reply_markup=keyboards.export_range_prompt(kind),
+        )
+        return
+    since, until_exclusive = parsed
+    await _send_registration_export(
+        update,
+        context,
+        kind=kind,
+        since=since,
+        until_exclusive=until_exclusive,
+    )
+
+
+# ---------------------------------------------------------------------------
 # پیام همگانی (broadcast) به همه‌ی کاربرانی که ربات را استارت کرده‌اند
 # ---------------------------------------------------------------------------
 
@@ -1304,6 +1606,11 @@ async def admin_bcast_no(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def admin_message_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """همه‌ی ورودی‌های مدیر: پیام همگانی (هر نوع پیام) + state های متنی."""
+    if context.user_data.get(WIDE_INVITE_STATE_KEY):
+        from bot.handlers.wide_admin import handle_owner_input  # noqa: PLC0415
+
+        await handle_owner_input(update, context)
+        raise ApplicationHandlerStop
     if context.user_data.get(BCAST_STATE_KEY):
         await admin_bcast_input(update, context)  # خودش ApplicationHandlerStop می‌دهد
         return
@@ -1312,6 +1619,23 @@ async def admin_message_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         raise ApplicationHandlerStop
     if context.user_data.get(REF_STATE_KEY):
         await _handle_ads_label_input(update, context)
+        raise ApplicationHandlerStop
+    if context.user_data.get(EXPORT_RANGE_STATE_KEY):
+        kind = context.user_data[EXPORT_RANGE_STATE_KEY]
+        if update.message is not None and update.message.text is not None:
+            await _handle_export_range_input(update, context)
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=(
+                    content.ADMIN_EXPORT_RANGE_INVALID
+                    + "\n\n"
+                    + content.ADMIN_EXPORT_RANGE_PROMPT.format(
+                        title=_EXPORT_KIND_TITLES.get(kind, "خروجی")
+                    )
+                ),
+                reply_markup=keyboards.export_range_prompt(kind),
+            )
         raise ApplicationHandlerStop
     if update.message is None or update.message.text is None:
         return  # رسانه‌ی بدون state فعال → نادیده گرفته می‌شود
@@ -1350,6 +1674,8 @@ def register(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(admin_ads, pattern=PATTERN_ADMIN_ADS))
     app.add_handler(CallbackQueryHandler(admin_ads_new, pattern=PATTERN_ADMIN_ADS_NEW))
     app.add_handler(CallbackQueryHandler(admin_ads_view, pattern=PATTERN_ADMIN_ADS_VIEW))
+    app.add_handler(CallbackQueryHandler(admin_ads_delete_prompt, pattern=PATTERN_ADMIN_ADS_DELETE))
+    app.add_handler(CallbackQueryHandler(admin_ads_delete, pattern=PATTERN_ADMIN_ADS_DELETE2))
     app.add_handler(CallbackQueryHandler(admin_ads_toggle, pattern=PATTERN_ADMIN_ADS_TOGGLE))
     app.add_handler(CallbackQueryHandler(admin_ads_msg, pattern=PATTERN_ADMIN_ADS_MSG))
     app.add_handler(CallbackQueryHandler(admin_ads_regs, pattern=PATTERN_ADMIN_ADS_REGS))
@@ -1373,6 +1699,10 @@ def register(app: Application) -> None:
     )
     app.add_handler(CallbackQueryHandler(admin_users_csv, pattern=PATTERN_ADMIN_USERS_CSV))
     app.add_handler(CallbackQueryHandler(admin_users_xlsx, pattern=PATTERN_ADMIN_USERS_XLSX))
+    app.add_handler(CallbackQueryHandler(admin_export_prompt, pattern=PATTERN_ADMIN_EXPORT_LEADS))
+    app.add_handler(CallbackQueryHandler(admin_export_prompt, pattern=PATTERN_ADMIN_EXPORT_STARTS))
+    app.add_handler(CallbackQueryHandler(admin_export_all, pattern=PATTERN_ADMIN_EXPORT_ALL))
+    app.add_handler(CallbackQueryHandler(admin_export_cancel, pattern=PATTERN_ADMIN_EXPORT_CANCEL))
     app.add_handler(CallbackQueryHandler(admin_range_quick, pattern=PATTERN_ADMIN_RANGE))
     app.add_handler(CallbackQueryHandler(admin_bcast, pattern=PATTERN_ADMIN_BCAST))
     app.add_handler(CallbackQueryHandler(admin_bcast_go, pattern=PATTERN_ADMIN_BCAST_GO))
