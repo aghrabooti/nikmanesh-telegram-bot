@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS registrations (
     level        TEXT NOT NULL DEFAULT '',
     city         TEXT NOT NULL DEFAULT '',
     phone        TEXT NOT NULL DEFAULT '',
-    sms_phone    TEXT NOT NULL DEFAULT '',
+    alternate_phone TEXT NOT NULL DEFAULT '',
     grade        TEXT NOT NULL DEFAULT '',
     field        TEXT NOT NULL DEFAULT '',
     current_step TEXT NOT NULL DEFAULT 'name',
@@ -125,7 +125,7 @@ _MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("level", "TEXT NOT NULL DEFAULT ''"),
         ("city", "TEXT NOT NULL DEFAULT ''"),
         ("phone", "TEXT NOT NULL DEFAULT ''"),
-        ("sms_phone", "TEXT NOT NULL DEFAULT ''"),
+        ("alternate_phone", "TEXT NOT NULL DEFAULT ''"),
         ("grade", "TEXT NOT NULL DEFAULT ''"),
         ("field", "TEXT NOT NULL DEFAULT ''"),
         ("current_step", "TEXT NOT NULL DEFAULT 'name'"),
@@ -239,6 +239,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
     recreate: list[str] = []
     for table, columns in _MIGRATIONS.items():
         existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if table == "registrations" and "alternate_phone" not in existing:
+            legacy_column = next(
+                (column for column in ("available_phone", "sms_phone") if column in existing),
+                None,
+            )
+            if legacy_column:
+                conn.execute(
+                    f"ALTER TABLE registrations RENAME COLUMN {legacy_column} TO alternate_phone"
+                )
+                existing.remove(legacy_column)
+                existing.add("alternate_phone")
         keys = {
             "users": ("user_id",),
             "registrations": ("user_id", "seminar_id"),
@@ -252,4 +263,18 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for table in recreate:
         conn.execute(f"DROP TABLE {table}")
         conn.execute(_TABLE_SQL[table])
+
+    # داده‌های دیتابیس‌های میان‌دوره‌ای را به نام نهایی منتقل کن.
+    registration_columns = {row["name"] for row in conn.execute("PRAGMA table_info(registrations)")}
+    for legacy_column in ("available_phone", "sms_phone"):
+        if legacy_column in registration_columns and "alternate_phone" in registration_columns:
+            conn.execute(
+                f"UPDATE registrations SET alternate_phone = {legacy_column} "
+                f"WHERE (alternate_phone IS NULL OR alternate_phone = '') "
+                f"AND {legacy_column} IS NOT NULL AND {legacy_column} != ''"
+            )
+    conn.execute(
+        "UPDATE registrations SET current_step = 'alternate_phone' "
+        "WHERE current_step IN ('sms', 'available_phone', 'confirm')"
+    )
     conn.commit()
