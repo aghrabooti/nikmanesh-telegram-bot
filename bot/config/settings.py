@@ -23,6 +23,9 @@ class Settings:
     bot_token: str
     admin_ids: frozenset[int]
     database_path: Path
+    database_backup_dir: Path
+    database_backup_interval_minutes: int
+    database_backup_retention_days: int
     mode: str  # polling | webhook
     webhook_url: str
     webhook_port: int
@@ -44,10 +47,22 @@ def get_settings() -> Settings:
     if not db_path.is_absolute():
         db_path = _ROOT / db_path
 
+    backup_raw = os.getenv("DATABASE_BACKUP_DIR", "").strip()
+    backup_dir = Path(backup_raw) if backup_raw else db_path.parent / "backups"
+    if not backup_dir.is_absolute():
+        backup_dir = _ROOT / backup_dir
+
     return Settings(
         bot_token=token,
         admin_ids=admin_ids,
         database_path=db_path,
+        database_backup_dir=backup_dir,
+        database_backup_interval_minutes=max(
+            1, int(os.getenv("DATABASE_BACKUP_INTERVAL_MINUTES", "15"))
+        ),
+        database_backup_retention_days=max(
+            1, int(os.getenv("DATABASE_BACKUP_RETENTION_DAYS", "30"))
+        ),
         mode=os.getenv("BOT_MODE", "polling").strip().lower(),
         webhook_url=os.getenv("WEBHOOK_URL", "").strip(),
         webhook_port=int(os.getenv("WEBHOOK_PORT", "8443")),
