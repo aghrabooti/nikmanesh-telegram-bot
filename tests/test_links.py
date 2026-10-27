@@ -177,14 +177,14 @@ async def test_admin_create_link_with_label_flow(bot_app):
     await send_text(app, bot, "کانال کنکور ریاضی", user=USER)
     link = referrals.links()[0]
     assert link["label"] == "کانال کنکور ریاضی"
-    sent = bot.send_message.await_args_list[-2:]
-    # پیام تأیید + لینک کامل
-    assert "کانال کنکور ریاضی" in sent[0].kwargs["text"]
-    assert f"https://t.me/nikmanesh_bot?start={REF_START_PREFIX}" in sent[0].kwargs["text"]
-    # بعد از تأیید، صفحه‌ی جزئیات همان لینک (پیام جدید — ورودی متنی است)
-    detail = sent[1].kwargs
-    assert "کانال کنکور ریاضی" in detail["text"]
-    assert f"adm:ads:t:{link['link_id']}" in callbacks(detail["reply_markup"])
+    created = last_send(bot)
+    # پیام تأیید شامل لینک کامل و رمز است.
+    assert "کانال کنکور ریاضی" in created["text"]
+    assert f"https://t.me/nikmanesh_bot?start={REF_START_PREFIX}" in created["text"]
+    # همان پیام پرامپت به هاب به‌روز‌شده برمی‌گردد و لینک تازه دکمه دارد.
+    updated_hub = last_edit(bot)
+    assert content.ADS_HUB_TITLE in updated_hub["text"]
+    assert f"adm:ads:v:{link['link_id']}" in callbacks(updated_hub["reply_markup"])
 
 
 async def test_admin_link_detail_and_toggle(bot_app):
