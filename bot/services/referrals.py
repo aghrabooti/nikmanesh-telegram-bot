@@ -55,16 +55,17 @@ def _new_unique(field: str, length: int) -> str:
             return value
 
 
-def create_link(label: str) -> dict:
-    """ساخت لینک رفرال جدید با برچسب مدیر؛ کد یکتا + رمز ورود کانال."""
+def create_link(label: str, *, owner_user_id: int | None = None) -> dict:
+    """ساخت لینک رفرال؛ owner_user_id برای لینک‌های ادمین گسترده است."""
     label = label.strip()[:64] or "بدون برچسب"
     for _ in range(20):  # احتمال تکراری بودن کد ۶کاراکتری عملاً صفر است
         code = _new_unique("code", _CODE_LEN)
         try:
             get_db().execute(
-                "INSERT INTO referral_links (code, label, is_active, phrase, created_at)"
-                " VALUES (?, ?, 1, ?, ?)",
-                (code, label, _new_unique("phrase", _PHRASE_LEN), now_iso()),
+                "INSERT INTO referral_links "
+                "(code, label, is_active, phrase, created_at, owner_user_id) "
+                "VALUES (?, ?, 1, ?, ?, ?)",
+                (code, label, _new_unique("phrase", _PHRASE_LEN), now_iso(), owner_user_id),
             )
             get_db().commit()
         except Exception:  # noqa: BLE001 — کد تکراری؛ یک کد دیگر امتحان می‌شود
@@ -86,9 +87,43 @@ def get_link(link_id: int) -> dict | None:
 
 
 def links() -> list[dict]:
-    """همه‌ی لینک‌ها (جدیدترین اول)."""
+    """همه‌ی لینک‌ها (ادمین اصلی؛ جدیدترین اول)."""
     rows = get_db().execute("SELECT * FROM referral_links ORDER BY link_id DESC").fetchall()
     return [dict(r) for r in rows]
+
+
+def owned_links(owner_user_id: int) -> list[dict]:
+    """فقط لینک‌هایی که به یک ادمین گسترده تعلق دارند."""
+    rows = (
+        get_db()
+        .execute(
+            "SELECT * FROM referral_links WHERE owner_user_id = ? ORDER BY link_id DESC",
+            (owner_user_id,),
+        )
+        .fetchall()
+    )
+    return [dict(row) for row in rows]
+
+
+def owns_link(owner_user_id: int, link_id: int) -> bool:
+    row = (
+        get_db()
+        .execute(
+            "SELECT 1 FROM referral_links WHERE link_id = ? AND owner_user_id = ?",
+            (link_id, owner_user_id),
+        )
+        .fetchone()
+    )
+    return row is not None
+
+
+def set_owner(link_id: int, owner_user_id: int | None) -> None:
+    """واگذاری/بازگرداندن لینک از پنل ادمین اصلی."""
+    get_db().execute(
+        "UPDATE referral_links SET owner_user_id = ? WHERE link_id = ?",
+        (owner_user_id, link_id),
+    )
+    get_db().commit()
 
 
 def set_active(link_id: int, active: bool) -> None:
@@ -97,6 +132,15 @@ def set_active(link_id: int, active: bool) -> None:
         (1 if active else 0, link_id),
     )
     get_db().commit()
+
+
+def delete_link(link_id: int) -> bool:
+    """حذف دائمی لینک و دسترسی مدیران کانال، با حفظ ثبت‌نام و first-touch."""
+    db = get_db()
+    db.execute("DELETE FROM channel_admins WHERE link_id = ?", (link_id,))
+    cursor = db.execute("DELETE FROM referral_links WHERE link_id = ?", (link_id,))
+    db.commit()
+    return cursor.rowcount > 0
 
 
 def reset_phrase(link_id: int) -> str:
