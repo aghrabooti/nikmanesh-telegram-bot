@@ -1,24 +1,35 @@
 """Automatic SQLite snapshots for started users, phone registrations and seminars.
 
 The source database remains authoritative. This service refreshes small, separate
-SQLite mirrors periodically and writes one full SQLite backup per day. Seminar
+SQLite mirrors periodically, writes one full SQLite backup per day, then sends a
+compressed full snapshot to every configured admin at 00:00 Asia/Tehran. Seminar
 mirrors contain every registration row, including partial and complete ones.
 """
 
 from __future__ import annotations
 
 import asyncio
+import gzip
+import json
 import logging
 import os
+import shutil
 import sqlite3
 import tempfile
-from collections.abc import Callable
-from datetime import datetime
+from collections.abc import Callable, Iterable
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from telegram import Bot, InputFile
 
 logger = logging.getLogger(__name__)
 
+_TEHRAN = ZoneInfo("Asia/Tehran")
+_DELIVERY_STATE_NAME = ".telegram-backup-delivery.json"
+_DELIVERY_RETRY_SECONDS = 15 * 60
 _task: asyncio.Task | None = None
+_delivery_task: asyncio.Task | None = None
 
 _USERS_SCHEMA = """
 CREATE TABLE users (
@@ -283,12 +294,13 @@ def _refresh_full_backup(database_path: Path, path: Path) -> None:
 
 def _prune_full_backups(full_dir: Path, retention_days: int, now: datetime) -> None:
     cutoff = now.timestamp() - retention_days * 24 * 60 * 60
-    for path in full_dir.glob("main-*.db"):
-        try:
-            if path.stat().st_mtime < cutoff:
-                path.unlink()
-        except OSError:
-            logger.exception("Failed to prune old full database backup: %s", path)
+    for pattern in ("main-*.db", "main-*.db.gz"):
+        for path in full_dir.glob(pattern):
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink()
+            except OSError:
+                logger.exception("Failed to prune old full database backup: %s", path)
 
 
 def create_backups(
@@ -339,6 +351,227 @@ def create_backups(
     return reports
 
 
+def _next_tehran_midnight(now: datetime) -> datetime:
+    """Return the next midnight in Asia/Tehran, independent of server timezone."""
+    local_now = now.replace(tzinfo=_TEHRAN) if now.tzinfo is None else now.astimezone(_TEHRAN)
+    tomorrow = local_now.date() + timedelta(days=1)
+    return datetime.combine(tomorrow, time.min, tzinfo=_TEHRAN)
+
+
+def _delivery_state_path(backup_dir: Path) -> Path:
+    return backup_dir / _DELIVERY_STATE_NAME
+
+
+def _load_delivery_state(path: Path) -> dict[str, set[int]]:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, json.JSONDecodeError):
+        logger.exception("Could not read nightly-backup delivery state: %s", path)
+        return {}
+    if not isinstance(raw, dict):
+        logger.error("Invalid nightly-backup delivery state format: %s", path)
+        return {}
+    state: dict[str, set[int]] = {}
+    for day, chat_ids in raw.items():
+        if isinstance(day, str) and isinstance(chat_ids, list):
+            try:
+                state[day] = {int(chat_id) for chat_id in chat_ids}
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid delivery-state entry for %s", day)
+    return state
+
+
+def _save_delivery_state(path: Path, state: dict[str, set[int]]) -> None:
+    _secure_directory(path.parent)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        with temp_path.open("w", encoding="utf-8") as stream:
+            json.dump(
+                {day: sorted(chat_ids) for day, chat_ids in sorted(state.items())},
+                stream,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            stream.flush()
+            os.fsync(stream.fileno())
+        _secure_file(temp_path)
+        os.replace(temp_path, path)
+        _secure_file(path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+def _gzip_backup(source_path: Path, compressed_path: Path) -> None:
+    """Compress a full SQLite snapshot atomically for Telegram document delivery."""
+    _secure_directory(compressed_path.parent)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{compressed_path.name}.", suffix=".tmp", dir=compressed_path.parent
+    )
+    os.close(fd)
+    temp_path = Path(temp_name)
+    try:
+        with source_path.open("rb") as source, temp_path.open("wb") as raw:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+                shutil.copyfileobj(source, compressed)
+            raw.flush()
+            os.fsync(raw.fileno())
+        _secure_file(temp_path)
+        os.replace(temp_path, compressed_path)
+        _secure_file(compressed_path)
+    except Exception:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+
+async def _prepare_delivery_file(
+    database_path: Path,
+    backup_dir: Path,
+    backup_date: date,
+    *,
+    today: date,
+    retention_days: int,
+) -> Path | None:
+    """Create today's snapshot and return its compressed file; reuse past snapshots."""
+    full_dir = backup_dir / "full"
+    database_file = full_dir / f"main-{backup_date.isoformat()}.db"
+    compressed_file = full_dir / f"main-{backup_date.isoformat()}.db.gz"
+
+    if backup_date == today:
+        iran_midnight = datetime.combine(backup_date, time.min)
+        await asyncio.to_thread(
+            create_backups,
+            database_path,
+            backup_dir,
+            retention_days=retention_days,
+            now=iran_midnight,
+        )
+    elif not database_file.is_file() and not compressed_file.is_file():
+        logger.error(
+            "Nightly backup snapshot for %s is missing; cannot retry delivery", backup_date
+        )
+        return None
+
+    if database_file.is_file() and (
+        backup_date == today
+        or not compressed_file.is_file()
+        or database_file.stat().st_mtime > compressed_file.stat().st_mtime
+    ):
+        await asyncio.to_thread(_gzip_backup, database_file, compressed_file)
+    return compressed_file if compressed_file.is_file() else None
+
+
+async def _deliver_backup_date(
+    database_path: Path,
+    backup_dir: Path,
+    bot: Bot,
+    recipient_ids: tuple[int, ...],
+    backup_date: date,
+    *,
+    retention_days: int,
+) -> bool:
+    """Create and deliver one full snapshot, persisting per-admin successes."""
+    today = datetime.now(_TEHRAN).date()
+    delivery_file = await _prepare_delivery_file(
+        database_path,
+        backup_dir,
+        backup_date,
+        today=today,
+        retention_days=retention_days,
+    )
+    state_path = _delivery_state_path(backup_dir)
+    state = _load_delivery_state(state_path)
+    key = backup_date.isoformat()
+
+    if delivery_file is None:
+        # An old, incomplete delivery can outlive its retained snapshot. Drop that
+        # impossible retry so it does not block the current night's delivery.
+        state.pop(key, None)
+        _save_delivery_state(state_path, state)
+        return True
+
+    sent_to = state.setdefault(key, set())
+    _save_delivery_state(state_path, state)
+    for chat_id in recipient_ids:
+        if chat_id in sent_to:
+            continue
+        try:
+            with delivery_file.open("rb") as document:
+                await bot.send_document(
+                    chat_id=chat_id,
+                    document=InputFile(document, filename=delivery_file.name),
+                    caption=f"📦 پشتیبان روزانه دیتابیس — {backup_date.isoformat()}",
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Could not send database backup for %s to admin %s", key, chat_id)
+            continue
+        sent_to.add(chat_id)
+        _save_delivery_state(state_path, state)
+        logger.info("Nightly database backup for %s sent to admin %s", key, chat_id)
+    return set(recipient_ids).issubset(sent_to)
+
+
+def _pending_delivery_dates(
+    backup_dir: Path, today: date, recipient_ids: tuple[int, ...]
+) -> list[date]:
+    state = _load_delivery_state(_delivery_state_path(backup_dir))
+    recipients = set(recipient_ids)
+    pending: set[date] = set()
+    for key, sent_to in state.items():
+        try:
+            backup_date = date.fromisoformat(key)
+        except ValueError:
+            logger.warning("Ignoring invalid backup delivery date: %s", key)
+            continue
+        if backup_date <= today and not recipients.issubset(sent_to):
+            pending.add(backup_date)
+    if not recipients.issubset(state.get(today.isoformat(), set())):
+        pending.add(today)
+    return sorted(pending)
+
+
+async def _daily_delivery_loop(
+    database_path: Path,
+    backup_dir: Path,
+    bot: Bot,
+    recipient_ids: tuple[int, ...],
+    retention_days: int,
+) -> None:
+    """Send one full snapshot per Tehran day, catching up after a bot restart."""
+    while True:
+        try:
+            now = datetime.now(_TEHRAN)
+            pending = _pending_delivery_dates(backup_dir, now.date(), recipient_ids)
+            if pending:
+                failed = False
+                for backup_date in pending:
+                    delivered = await _deliver_backup_date(
+                        database_path,
+                        backup_dir,
+                        bot,
+                        recipient_ids,
+                        backup_date,
+                        retention_days=retention_days,
+                    )
+                    failed = failed or not delivered
+                if failed:
+                    await asyncio.sleep(_DELIVERY_RETRY_SECONDS)
+                continue
+            next_midnight = _next_tehran_midnight(now)
+            await asyncio.sleep(max(1.0, (next_midnight - now).total_seconds()))
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Nightly database backup delivery failed")
+            await asyncio.sleep(_DELIVERY_RETRY_SECONDS)
+
+
 async def _run_task(
     database_path: Path, backup_dir: Path, interval_minutes: int, retention_days: int
 ) -> None:
@@ -383,13 +616,52 @@ def ensure_task(
     return False
 
 
+def ensure_delivery_task(
+    database_path: str | Path,
+    backup_dir: str | Path,
+    bot: Bot,
+    recipient_chat_ids: Iterable[int],
+    *,
+    retention_days: int = 30,
+) -> bool:
+    """Start nightly Telegram delivery to the configured administrators."""
+    global _delivery_task
+    recipients = tuple(sorted({int(chat_id) for chat_id in recipient_chat_ids if int(chat_id) > 0}))
+    if not recipients:
+        logger.warning("Nightly backup delivery is disabled: ADMIN_IDS is empty")
+        return False
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    if _delivery_task is None or _delivery_task.done():
+        _delivery_task = loop.create_task(
+            _daily_delivery_loop(
+                Path(database_path),
+                Path(backup_dir),
+                bot,
+                recipients,
+                max(1, retention_days),
+            )
+        )
+        logger.info(
+            "Nightly database backup delivery enabled at 00:00 Asia/Tehran for %s admin(s)",
+            len(recipients),
+        )
+        return True
+    return False
+
+
 async def cancel_task() -> None:
-    """Stop the periodic backup worker cleanly during shutdown."""
-    global _task
-    if _task is not None:
-        _task.cancel()
-        try:
-            await _task
-        except asyncio.CancelledError:
-            pass
-        _task = None
+    """Stop local snapshots and nightly Telegram delivery on shutdown."""
+    global _task, _delivery_task
+    tasks = (_task, _delivery_task)
+    _task = None
+    _delivery_task = None
+    for task in tasks:
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
