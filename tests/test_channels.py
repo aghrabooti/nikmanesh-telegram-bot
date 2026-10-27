@@ -84,7 +84,7 @@ async def test_channels_flow_login_and_aggregate_stats(bot_app):
     assert content.CH_GRANTED.format(label="کانال همکار") in texts_sent[0]
     stats = texts_sent[1]
     assert "کانال همکار" in stats and "ورودی (استارت): <b>۱</b>" in stats
-    assert "ثبت‌نام کامل: <b>۱</b>" in stats and "تایید شماره" in stats
+    assert "ثبت‌نام کامل: <b>۱</b>" in stats and "شماره جایگزین" in stats
     # هیچ داده‌ی شخصی در صفحه نیست
     assert "سارا احمدی" not in stats and "09123456789" not in stats and "+989" not in stats
 
@@ -108,7 +108,11 @@ async def test_channels_list_after_login_and_no_personal_data(bot_app):
     await send_command(app, bot, "/channels", user=NON_ADMIN)
     sent = last_send(bot)
     assert content.CH_TITLE in sent["text"]
-    assert callbacks(sent["reply_markup"]) == [f"ch:l:{link['link_id']}", "main"]
+    assert callbacks(sent["reply_markup"]) == [
+        f"ch:l:{link['link_id']}",
+        "ch:add",
+        "main",
+    ]
 
     await tap(app, bot, f"ch:l:{link['link_id']}", user=NON_ADMIN)
     page = last_edit(bot)["text"]
@@ -146,6 +150,76 @@ async def test_channels_bot_admin_gets_redirect(bot_app):
     app, bot = bot_app
     await send_command(app, bot, "/channels", user=USER)  # USER=777 = ادمین
     assert "/admin" in last_send(bot)["text"]
+
+
+# ── افزودن کانالهای بعدی توسط ادمین کانال ───────────────────────────────
+
+
+async def test_channel_admin_can_add_second_channel_with_button(bot_app):
+    """دمین کانال با دکمهی «➕ افزودن کانال» کانال دوم را هم اضافه میکند."""
+    app, bot = bot_app
+    first = referrals.create_link("کانال اول")
+    second = referrals.create_link("کانال دوم")
+    referrals.add_channel_admin(NON_ADMIN.id, first["link_id"])
+
+    await send_command(app, bot, "/channels", user=NON_ADMIN)
+    assert "ch:add" in callbacks(last_send(bot)["reply_markup"])
+
+    await tap(app, bot, "ch:add", user=NON_ADMIN)
+    prompt = last_edit(bot)
+    assert prompt["text"] == content.CH_ADD_PROMPT
+    assert callbacks(prompt["reply_markup"]) == ["ch:home"]
+
+    await send_text(app, bot, second["phrase"], user=NON_ADMIN)
+    assert referrals.is_channel_admin(NON_ADMIN.id, second["link_id"])
+    assert len(referrals.user_links(NON_ADMIN.id)) == 2
+
+    sent_texts = [c.kwargs.get("text", "") for c in bot.send_message.await_args_list]
+    assert content.CH_ADD_GRANTED.format(label="کانال دوم") in sent_texts
+    assert any("کانال دوم" in t and "تعداد ورودی" in t for t in sent_texts)
+    # ادمین ربات هم از اضافه شدن کانال جدید مطلع شد
+    notified = [
+        c.kwargs for c in bot.send_message.await_args_list if c.kwargs.get("chat_id") == USER.id
+    ]
+    assert any("کانال دوم" in k["text"] for k in notified)
+
+
+async def test_channel_admin_can_add_second_channel_with_command_arg(bot_app):
+    """/channels <رمز> حتی وقتی کانال قبلی وجود دارد، کانال جدید اضافه میکند."""
+    app, bot = bot_app
+    first = referrals.create_link("کانال الف")
+    second = referrals.create_link("کانال ب")
+    referrals.add_channel_admin(NON_ADMIN.id, first["link_id"])
+
+    await send_command(app, bot, f"/channels {second['phrase']}", user=NON_ADMIN)
+    assert referrals.is_channel_admin(NON_ADMIN.id, second["link_id"])
+    assert len(referrals.user_links(NON_ADMIN.id)) == 2
+    sent_texts = [c.kwargs.get("text", "") for c in bot.send_message.await_args_list]
+    assert content.CH_ADD_GRANTED.format(label="کانال ب") in sent_texts
+
+
+async def test_channels_cancel_with_existing_links_returns_list(bot_app):
+    """انصراف موقع افزودن کانال، کاربر را به لیست کانالهای قبلی برمیگرداند."""
+    app, bot = bot_app
+    link = referrals.create_link("کانال قبلی")
+    referrals.add_channel_admin(NON_ADMIN.id, link["link_id"])
+
+    await tap(app, bot, "ch:add", user=NON_ADMIN)
+    await send_text(app, bot, content.CH_LOGIN_CANCEL_LBL, user=NON_ADMIN)
+    assert content.CH_TITLE in last_send(bot)["text"]
+
+
+async def test_channels_home_clears_add_state(bot_app):
+    """دکمهی انصراف اینلاین از پرامپت افزودن، لیست را نشان میدهد."""
+    app, bot = bot_app
+    link = referrals.create_link("کانال تست")
+    referrals.add_channel_admin(NON_ADMIN.id, link["link_id"])
+
+    await tap(app, bot, "ch:add", user=NON_ADMIN)
+    await tap(app, bot, "ch:home", user=NON_ADMIN)
+    page = last_edit(bot)
+    assert content.CH_TITLE in page["text"]
+    assert "ch:add" in callbacks(page["reply_markup"])
 
 
 # ── پنل ادمین ربات: رمز، بیرون کردن، رمز جدید ────────────────────────────
