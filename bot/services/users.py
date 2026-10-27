@@ -32,6 +32,13 @@ def count_users() -> int:
     return row["n"]
 
 
+def list_users() -> list[dict]:
+    """همه‌ی کاربرانی که ربات را استارت کرده‌اند، به‌ترتیب زمان شروع."""
+    return [
+        dict(row) for row in get_db().execute("SELECT * FROM users ORDER BY started_at, user_id")
+    ]
+
+
 def all_user_ids() -> list[int]:
     """شناسه‌ی همه‌ی کاربران — گیرنده‌های پیام همگانی."""
     return [row["user_id"] for row in get_db().execute("SELECT user_id FROM users")]
