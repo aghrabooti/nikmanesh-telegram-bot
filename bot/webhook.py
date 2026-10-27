@@ -22,8 +22,14 @@ async def _serve(app: Application, settings) -> None:
     await app.start()
     # حلقه‌ی یادآورها — post_init فقط در run_polling/run_webhook اجرا می‌شود؛
     # اینجا حالت دستی است و باید خودمان روشنش کنیم.
-    from bot.services import reminders, sender  # noqa: PLC0415
+    from bot.services import database_backups, reminders, sender  # noqa: PLC0415
 
+    database_backups.ensure_task(
+        settings.database_path,
+        settings.database_backup_dir,
+        interval_minutes=settings.database_backup_interval_minutes,
+        retention_days=settings.database_backup_retention_days,
+    )
     reminders.ensure_task(app)
     sender.ensure_worker()
     secret_path = settings.bot_token.split(":")[0]
@@ -37,10 +43,11 @@ async def _serve(app: Application, settings) -> None:
     try:
         await asyncio.Event().wait()  # تا ابد (توقف با سیگنال)
     finally:
-        from bot.services import reminders, sender  # noqa: PLC0415
+        from bot.services import database_backups, reminders, sender  # noqa: PLC0415
 
         await reminders.cancel_task()
         await sender.cancel_worker()
+        await database_backups.cancel_task()
         await app.updater.stop()
         await app.stop()
         await app.shutdown()
