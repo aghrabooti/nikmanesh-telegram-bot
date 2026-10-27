@@ -19,17 +19,27 @@ async def test_polling_lifecycle_starts_and_stops_backups(monkeypatch, tmp_path)
     monkeypatch.setattr(main.reminders, "ensure_task", Mock())
     monkeypatch.setattr(main.sender, "ensure_worker", Mock())
     start_backup = Mock()
+    start_delivery = Mock()
     stop_backup = AsyncMock()
     monkeypatch.setattr(main.database_backups, "ensure_task", start_backup)
+    monkeypatch.setattr(main.database_backups, "ensure_delivery_task", start_delivery)
     monkeypatch.setattr(main.database_backups, "cancel_task", stop_backup)
     monkeypatch.setattr(main.reminders, "cancel_task", AsyncMock())
     monkeypatch.setattr(main.sender, "cancel_worker", AsyncMock())
+    app = SimpleNamespace(bot=object())
 
-    await main._on_startup(None)
+    await main._on_startup(app)
     start_backup.assert_called_once_with(
         tmp_path / "source.db",
         tmp_path / "backups",
         interval_minutes=15,
+        retention_days=30,
+    )
+    start_delivery.assert_called_once_with(
+        tmp_path / "source.db",
+        tmp_path / "backups",
+        app.bot,
+        frozenset({777}),
         retention_days=30,
     )
     await main._on_shutdown(None)
@@ -48,6 +58,7 @@ async def test_webhook_lifecycle_starts_and_stops_backups(monkeypatch, tmp_path)
     app = SimpleNamespace(
         initialize=AsyncMock(),
         start=AsyncMock(),
+        bot=SimpleNamespace(send_document=AsyncMock()),
         updater=SimpleNamespace(start_webhook=start_webhook, stop=AsyncMock()),
         stop=AsyncMock(),
         shutdown=AsyncMock(),
@@ -57,13 +68,16 @@ async def test_webhook_lifecycle_starts_and_stops_backups(monkeypatch, tmp_path)
         database_backup_dir=tmp_path / "backups",
         database_backup_interval_minutes=7,
         database_backup_retention_days=12,
+        admin_ids=frozenset({777, 888}),
         bot_token="123456:TEST-TOKEN",
         webhook_port=8443,
         webhook_url="https://example.test/hook",
     )
     start_backup = Mock()
+    start_delivery = Mock()
     stop_backup = AsyncMock()
     monkeypatch.setattr(database_backups, "ensure_task", start_backup)
+    monkeypatch.setattr(database_backups, "ensure_delivery_task", start_delivery)
     monkeypatch.setattr(database_backups, "cancel_task", stop_backup)
     monkeypatch.setattr(reminders, "ensure_task", Mock())
     monkeypatch.setattr(reminders, "cancel_task", AsyncMock())
@@ -76,6 +90,13 @@ async def test_webhook_lifecycle_starts_and_stops_backups(monkeypatch, tmp_path)
         settings.database_path,
         settings.database_backup_dir,
         interval_minutes=7,
+        retention_days=12,
+    )
+    start_delivery.assert_called_once_with(
+        settings.database_path,
+        settings.database_backup_dir,
+        app.bot,
+        settings.admin_ids,
         retention_days=12,
     )
     task.cancel()
