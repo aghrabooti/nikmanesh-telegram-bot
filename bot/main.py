@@ -19,7 +19,7 @@ from telegram.error import TelegramError
 from telegram.ext import Application, ApplicationBuilder
 
 from bot.handlers import register_handlers
-from bot.services import reminders, sender
+from bot.services import database_backups, reminders, sender
 from bot.services.database import init_db
 from bot.utils.logging_setup import setup_logging
 
@@ -51,16 +51,26 @@ async def _setup_commands(app: Application) -> None:
 
 
 async def _on_startup(app: Application) -> None:
-    """پس از راه‌اندازی: ثبت فرمان‌ها + حلقه‌ی یادآورها + صف ارسال انبوه."""
+    """پس از راه‌اندازی: فرمان‌ها، یادآورها، صف ارسال و پشتیبان‌گیری."""
     await _setup_commands(app)
+    from bot.config.settings import get_settings  # noqa: PLC0415
+
+    settings = get_settings()
     reminders.ensure_task(app)
     sender.ensure_worker()
+    database_backups.ensure_task(
+        settings.database_path,
+        settings.database_backup_dir,
+        interval_minutes=settings.database_backup_interval_minutes,
+        retention_days=settings.database_backup_retention_days,
+    )
 
 
 async def _on_shutdown(app: Application) -> None:
-    """پیش از توقف کامل: توقف حلقه‌ی یادآورها و صف ارسال."""
+    """پیش از توقف کامل: توقف یادآورها، صف ارسال و پشتیبان‌گیری."""
     await reminders.cancel_task()
     await sender.cancel_worker()
+    await database_backups.cancel_task()
 
 
 def create_application() -> Application:
