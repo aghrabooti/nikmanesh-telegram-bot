@@ -5,8 +5,12 @@ from __future__ import annotations
 import csv
 import io
 
+from openpyxl import load_workbook
+from telegram import InputFile
+
 from bot.config import content
 from bot.services import seminars
+from bot.services.database import get_db
 from tests.helpers import (
     NON_ADMIN,
     callbacks,
@@ -50,6 +54,8 @@ async def test_admin_overview_callbacks(bot_app):
     assert callbacks(sent["reply_markup"]) == [
         "adm:sems",
         "adm:bcast",
+        "adm:users:csv",
+        "adm:users:xlsx",
         "adm:ads",
         "adm:rem",
         "adm:about",
@@ -119,7 +125,7 @@ async def test_seminar_page_shows_fields_and_stats(bot_app):
     assert "کامل: <b>۱</b>" in edited["text"]
     assert "نیمه‌کاره: <b>۰</b>" in edited["text"]
     assert "قیف:" in edited["text"]
-    assert "تایید شماره" in edited["text"]  # اسم مرحله‌ی آخر (نه «پیامک»)
+    assert "شماره جایگزین" in edited["text"]  # برچسب مرحله‌ی آخر
 
 
 async def test_edit_menu_fields(bot_app):
@@ -201,7 +207,13 @@ async def test_regs_page_counts(bot_app):
     edited = last_edit(bot)
     assert "کل: <b>۱</b>" in edited["text"]
     assert "کامل: <b>۱</b>" in edited["text"]
-    assert callbacks(edited["reply_markup"])[:2] == ["adm:regs:msg:1", "adm:regs:csv:1"]
+    assert callbacks(edited["reply_markup"])[:5] == [
+        "adm:regs:msg:1",
+        "adm:regs:csv:1",
+        "adm:regs:csv-complete:1",
+        "adm:regs:xlsx:1",
+        "adm:regs:xlsx-complete:1",
+    ]
 
 
 async def test_regs_message_output(bot_app):
@@ -229,8 +241,10 @@ async def test_regs_csv_output(bot_app):
     await tap(app, bot, "adm:regs:csv:1")
 
     doc = last_document(bot)
-    assert doc["filename"] == "seminar-1-regs.csv"
-    raw = doc["document"].input_file_content
+    assert doc["filename"] == "seminar-1-registrations-all.csv"
+    upload = InputFile(doc["document"], filename=doc["filename"])
+    assert upload.filename == doc["filename"] and upload.mimetype == "text/csv"
+    raw = doc["document"].getvalue()
     text = raw.decode("utf-8")
     assert text.startswith("\ufeff")  # BOM برای Excel فارسی
     rows = list(csv.reader(io.StringIO(text.lstrip("\ufeff"))))
@@ -241,7 +255,7 @@ async def test_regs_csv_output(bot_app):
         "رشته",
         "شهر",
         "شماره تلگرام",
-        "شماره پیامک",
+        "شماره جایگزین",
         "وضعیت",
         "تاریخ ثبت",
     ]
@@ -251,6 +265,105 @@ async def test_regs_csv_output(bot_app):
     assert rows[1][5] == "+989121234567"
     assert rows[1][6] == "09123456789"
     assert rows[1][7] == "کامل"
+
+
+async def test_regs_csv_complete_only_excludes_partial(bot_app):
+    app, bot = bot_app
+    await _create_via_panel(app, bot)
+    seminars.ensure_registration(1001, 1)
+    seminars.save_registration(
+        1001,
+        1,
+        next_step=seminars.STEP_ALTERNATE_PHONE,
+        name="ثبت کامل",
+        alternate_phone="09111111111",
+    )
+    seminars.complete_registration(1001, 1)
+    seminars.ensure_registration(1002, 1)
+    seminars.save_registration(1002, 1, next_step=seminars.STEP_NAME, name="ثبت ناقص")
+
+    await tap(app, bot, "adm:regs:1")
+    await tap(app, bot, "adm:regs:csv-complete:1")
+    doc = last_document(bot)
+    assert doc["filename"] == "seminar-1-registrations-completed.csv"
+    rows = list(
+        csv.reader(io.StringIO(doc["document"].getvalue().decode("utf-8").lstrip("\ufeff")))
+    )
+    assert len(rows) == 2  # سرصفحه + تنها ثبت کامل
+    assert rows[1][1] == "ثبت کامل"
+    assert rows[1][7] == "کامل"
+
+
+async def test_started_users_csv(bot_app):
+    app, bot = bot_app
+    await send_command(app, bot, "/start", user=NON_ADMIN)
+    await tap(app, bot, "adm:users:csv")
+
+    doc = last_document(bot)
+    assert doc["filename"] == "users-started.csv"
+    upload = InputFile(doc["document"], filename=doc["filename"])
+    assert upload.filename == doc["filename"] and upload.mimetype == "text/csv"
+    rows = list(
+        csv.reader(io.StringIO(doc["document"].getvalue().decode("utf-8").lstrip("\ufeff")))
+    )
+    assert rows[0] == ["شناسه تلگرام", "نام", "نام کاربری", "زمان شروع", "آخرین بازدید"]
+    assert rows[1][0] == str(NON_ADMIN.id)
+    assert rows[1][1] == NON_ADMIN.first_name
+
+
+async def test_regs_xlsx_respects_range_and_completed_filter(bot_app):
+    app, bot = bot_app
+    await _create_via_panel(app, bot)
+    seminars.ensure_registration(1001, 1)
+    seminars.save_registration(
+        1001,
+        1,
+        next_step=seminars.STEP_ALTERNATE_PHONE,
+        name="ثبت امروز",
+        alternate_phone="09111111111",
+    )
+    seminars.complete_registration(1001, 1)
+    seminars.ensure_registration(1002, 1)
+    seminars.save_registration(1002, 1, next_step=seminars.STEP_NAME, name="ثبت قدیمی")
+    get_db().execute(
+        "UPDATE registrations SET created_at = ?, updated_at = ? WHERE user_id = ?",
+        ("2000-01-01 00:00:00", "2000-01-01 00:00:00", 1002),
+    )
+    get_db().commit()
+
+    await tap(app, bot, "adm:regs:1")
+    await tap(app, bot, "adm:range:today")
+    await tap(app, bot, "adm:regs:xlsx:1")
+    doc = last_document(bot)
+    assert doc["filename"] == "seminar-1-registrations-all.xlsx"
+    upload = InputFile(doc["document"], filename=doc["filename"])
+    assert upload.filename == doc["filename"]
+    assert upload.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    workbook = load_workbook(io.BytesIO(upload.input_file_content), data_only=True)
+    sheet = workbook.active
+    rows = list(sheet.values)
+    assert sheet.sheet_view.rightToLeft is True
+    assert rows[0][6] == "شماره جایگزین"
+    assert len(rows) == 2 and rows[1][1] == "ثبت امروز"
+
+    await tap(app, bot, "adm:regs:xlsx-complete:1")
+    doc = last_document(bot)
+    workbook = load_workbook(io.BytesIO(doc["document"].getvalue()), read_only=True, data_only=True)
+    rows = list(workbook.active.values)
+    assert len(rows) == 2 and rows[1][1] == "ثبت امروز" and rows[1][7] == "کامل"
+
+
+async def test_started_users_xlsx(bot_app):
+    app, bot = bot_app
+    await send_command(app, bot, "/start", user=NON_ADMIN)
+    await tap(app, bot, "adm:users:xlsx")
+
+    doc = last_document(bot)
+    assert doc["filename"] == "users-started.xlsx"
+    workbook = load_workbook(io.BytesIO(doc["document"].getvalue()), read_only=True)
+    rows = list(workbook.active.values)
+    assert rows[0] == ("شناسه تلگرام", "نام", "نام کاربری", "زمان شروع", "آخرین بازدید")
+    assert rows[1][0] == NON_ADMIN.id
 
 
 async def test_regs_range_quick(bot_app):
