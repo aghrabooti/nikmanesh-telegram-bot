@@ -46,8 +46,26 @@ CREATE TABLE IF NOT EXISTS referral_links (
     code       TEXT NOT NULL UNIQUE,
     label      TEXT NOT NULL,
     is_active  INTEGER NOT NULL DEFAULT 1,
-    phrase     TEXT NOT NULL DEFAULT '',
+    phrase         TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL,
+    owner_user_id  INTEGER
+);
+
+-- نقش‌های ادمین گسترده جدا از ADMIN_IDS (هیچ دسترسی به دادهٔ ثبت‌نام فردی ندارند)
+CREATE TABLE IF NOT EXISTS wide_admins (
+    user_id    INTEGER PRIMARY KEY,
+    created_by INTEGER NOT NULL,
     created_at TEXT NOT NULL
+);
+
+-- دعوت‌های یک‌بارمصرفِ متصل به شناسهٔ تلگرام؛ فقط هش رمز ذخیره می‌شود
+CREATE TABLE IF NOT EXISTS wide_admin_invites (
+    invite_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_user_id INTEGER NOT NULL,
+    token_hash     TEXT NOT NULL UNIQUE,
+    created_by     INTEGER NOT NULL,
+    created_at     TEXT NOT NULL,
+    used_at        TEXT NOT NULL DEFAULT ''
 );
 
 -- ادمین‌های کانال: کسانی که با رمز ورود، دسترسی فقط-آماری به یک لینک گرفته‌اند
@@ -119,6 +137,7 @@ _MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("is_active", "INTEGER NOT NULL DEFAULT 1"),
         ("phrase", "TEXT NOT NULL DEFAULT ''"),
         ("created_at", "TEXT NOT NULL DEFAULT ''"),
+        ("owner_user_id", "INTEGER"),
     ],
     "registrations": [
         ("name", "TEXT NOT NULL DEFAULT ''"),
@@ -263,6 +282,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for table in recreate:
         conn.execute(f"DROP TABLE {table}")
         conn.execute(_TABLE_SQL[table])
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_referral_links_owner ON referral_links (owner_user_id)"
+    )
 
     # داده‌های دیتابیس‌های میان‌دوره‌ای را به نام نهایی منتقل کن.
     registration_columns = {row["name"] for row in conn.execute("PRAGMA table_info(registrations)")}
