@@ -26,9 +26,12 @@ from bot.constants import (
     ABOUT_STATE_KEY,
     BCAST_STATE_KEY,
     EDIT_STATE_KEY,
+    EXPORT_RANGE_STATE_KEY,
     NEW_STATE_KEY,
     PATTERN_SEMINAR_REGISTER,
     RANGE_STATE_KEY,
+    WIDE_INVITE_STATE_KEY,
+    WIDE_LINK_LABEL_STATE_KEY,
 )
 from bot.handlers.seminars import render_seminar_screen
 from bot.keyboards import user as user_keyboards
@@ -132,8 +135,11 @@ def _admin_busy(context) -> bool:
         NEW_STATE_KEY,
         EDIT_STATE_KEY,
         RANGE_STATE_KEY,
+        EXPORT_RANGE_STATE_KEY,
         BCAST_STATE_KEY,
         ABOUT_STATE_KEY,
+        WIDE_INVITE_STATE_KEY,
+        WIDE_LINK_LABEL_STATE_KEY,
     )
     return any(context.user_data.get(k) for k in keys)
 
