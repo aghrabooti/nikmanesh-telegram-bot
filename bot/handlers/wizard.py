@@ -1,7 +1,7 @@
 """فرم ثبت‌نام ۷ مرحله‌ای:
 
 نام ← پایه (کنکوری ۴۰۶/۴۰۷/۴۰۸) ← رشته (تجربی/ریاضی/انسانی) ← شهر ←
-شماره تلگرام (اشتراک مخاطب) ← شماره پیامک (تایپ دستی 09xxxxxxxxx) ← پیام آخر.
+شماره تلگرام (اشتراک مخاطب) ← شماره جایگزین (تایپ دستی 09xxxxxxxxx) ← پیام آخر.
 
 همه‌ی مراحل با ریپلای کیبورد + دکمه‌های «⬅️ مرحله قبل» و «🔙 بازگشت» هستند.
 """
@@ -38,8 +38,8 @@ from bot.utils.persian import is_persian_text, normalize_phone, to_en
 # کلید سمینارِ فعال در user_data
 ACTIVE_SEMINAR_KEY = "active_seminar_id"
 
-# شماره‌ی پیامک: دقیقاً ۱۱ رقم که با ۰۹ شروع می‌شود (ارقام فارسی/انگلیسی)
-_SMS_RE = re.compile(r"^09\d{9}$")
+# شماره‌ی جایگزین: دقیقاً ۱۱ رقم که با ۰۹ شروع می‌شود (ارقام فارسی/انگلیسی)
+_ALTERNATE_PHONE_RE = re.compile(r"^09\d{9}$")
 
 # مرحله‌ی قبلی هر مرحله (برای دکمه‌ی «مرحله قبل»)
 _PREV_STEP = {
@@ -47,7 +47,7 @@ _PREV_STEP = {
     seminars.STEP_FIELD: seminars.STEP_GRADE,
     seminars.STEP_CITY: seminars.STEP_FIELD,
     seminars.STEP_PHONE: seminars.STEP_CITY,
-    seminars.STEP_SMS: seminars.STEP_PHONE,
+    seminars.STEP_ALTERNATE_PHONE: seminars.STEP_PHONE,
 }
 
 
@@ -95,8 +95,8 @@ async def _send_step(context, chat_id: int, seminar: dict, reg: dict) -> None:
         kb = user_keyboards.wiz_text_keyboard()
     elif step == seminars.STEP_PHONE:
         kb = user_keyboards.wiz_phone_keyboard()
-    else:  # تایید شماره (پیامک)
-        kb = user_keyboards.wiz_sms_keyboard()
+    else:  # شماره جایگزین
+        kb = user_keyboards.wiz_alternate_phone_keyboard()
 
     text = {
         seminars.STEP_NAME: content.WIZ_NAME_TEXT,
@@ -104,7 +104,7 @@ async def _send_step(context, chat_id: int, seminar: dict, reg: dict) -> None:
         seminars.STEP_FIELD: content.WIZ_FIELD_TEXT,
         seminars.STEP_CITY: content.WIZ_CITY_TEXT,
         seminars.STEP_PHONE: content.WIZ_PHONE_TEXT,
-        seminars.STEP_SMS: content.WIZ_SMS_TEXT,
+        seminars.STEP_ALTERNATE_PHONE: content.WIZ_ALTERNATE_PHONE_TEXT,
     }[step]
     await context.bot.send_message(chat_id, text=text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -157,10 +157,10 @@ async def _exit_wizard(update, context, seminar: dict) -> None:
     )
 
 
-def _valid_sms_phone(text: str) -> str | None:
-    """اعتبارسنجی شماره پیامک: شروع با ۰۹ و دقیقاً ۱۱ رقم (فارسی/انگلیسی)."""
+def _valid_alternate_phone(text: str) -> str | None:
+    """اعتبارسنجی شماره جایگزین: شروع با ۰۹ و دقیقاً ۱۱ رقم (فارسی/انگلیسی)."""
     digits = to_en(text).replace(" ", "").replace("-", "")
-    return digits if _SMS_RE.match(digits) else None
+    return digits if _ALTERNATE_PHONE_RE.match(digits) else None
 
 
 async def wizard_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -218,21 +218,21 @@ async def wizard_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await _reply(update, context, content.WIZ_PHONE_INVALID)
             raise ApplicationHandlerStop
         await _advance(update, context, seminar, reg, phone=phone)
-    else:  # تایید شماره (پیامک)
-        if text == content.LBL_PHONE_OK:
-            # تأیید: همان شماره تلگرام برای پیامک استفاده می‌شود
+    else:  # شماره جایگزین
+        if text == content.LBL_ALTERNATE_PHONE_OK:
+            # تأیید: همان شماره‌ی تلگرام به‌عنوان شماره‌ی جایگزین ثبت می‌شود.
             telegram_phone = reg.get("phone") or ""
-            sms = "0" + telegram_phone[3:] if telegram_phone.startswith("+98") else None
-            if sms is None or _valid_sms_phone(sms) is None:
-                await _reply(update, context, content.WIZ_SMS_INVALID)
+            alternate_phone = "0" + telegram_phone[3:] if telegram_phone.startswith("+98") else None
+            if alternate_phone is None or _valid_alternate_phone(alternate_phone) is None:
+                await _reply(update, context, content.WIZ_ALTERNATE_PHONE_INVALID)
                 raise ApplicationHandlerStop
-            await _finish(update, context, seminar, reg, sms_phone=sms)
+            await _finish(update, context, seminar, reg, alternate_phone=alternate_phone)
             raise ApplicationHandlerStop
-        sms = _valid_sms_phone(text)
-        if sms is None:
-            await _reply(update, context, content.WIZ_SMS_INVALID)
+        alternate_phone = _valid_alternate_phone(text)
+        if alternate_phone is None:
+            await _reply(update, context, content.WIZ_ALTERNATE_PHONE_INVALID)
             raise ApplicationHandlerStop
-        await _finish(update, context, seminar, reg, sms_phone=sms)
+        await _finish(update, context, seminar, reg, alternate_phone=alternate_phone)
     raise ApplicationHandlerStop  # پیام در ویزارد مصرف شد
 
 
@@ -249,11 +249,14 @@ async def _advance(update, context, seminar: dict, reg: dict, **fields) -> None:
     )
 
 
-async def _finish(update, context, seminar: dict, reg: dict, *, sms_phone: str) -> None:
-    """پایان ثبت‌نام: ذخیره‌ی شماره پیامک + تکمیل + پیام آخر + منوی ثابت."""
+async def _finish(update, context, seminar: dict, reg: dict, *, alternate_phone: str) -> None:
+    """پایان ثبت‌نام: ذخیره‌ی شماره جایگزین + تکمیل + پیام آخر + منوی ثابت."""
     user_id = update.effective_user.id
     seminars.save_registration(
-        user_id, seminar["id"], sms_phone=sms_phone, next_step=seminars.STEP_SMS
+        user_id,
+        seminar["id"],
+        alternate_phone=alternate_phone,
+        next_step=seminars.STEP_ALTERNATE_PHONE,
     )
     seminars.complete_registration(user_id, seminar["id"])
     context.user_data.pop(ACTIVE_SEMINAR_KEY, None)
@@ -263,7 +266,7 @@ async def _finish(update, context, seminar: dict, reg: dict, *, sms_phone: str) 
         rows.append([InlineKeyboardButton(content.LBL_ENTER_SEMINAR, url=seminar["link"])])
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text=seminars.final_message(seminar, {**reg, "sms_phone": sms_phone}),
+        text=seminars.final_message(seminar, {**reg, "alternate_phone": alternate_phone}),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(rows) if rows else None,
     )
