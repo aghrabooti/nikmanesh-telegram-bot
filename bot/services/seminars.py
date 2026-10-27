@@ -278,6 +278,78 @@ def count_registrations(
     return row["total"], row["done"]
 
 
+def _registration_datetime_conds(
+    since: datetime | None, until_exclusive: datetime | None
+) -> tuple[str, list[str]]:
+    """شرط‌های بازهٔ تاریخ/ساعت برای زمان شروع ثبت‌نام."""
+    conds, params = [], []
+    if since is not None:
+        conds.append("r.created_at >= ?")
+        params.append(since.strftime("%Y-%m-%d %H:%M:%S"))
+    if until_exclusive is not None:
+        conds.append("r.created_at < ?")
+        params.append(until_exclusive.strftime("%Y-%m-%d %H:%M:%S"))
+    return (f" AND {' AND '.join(conds)}" if conds else ""), params
+
+
+def _registration_export_rows(
+    *,
+    since: datetime | None,
+    until_exclusive: datetime | None,
+    phone_required: bool,
+) -> list[dict]:
+    conds, params = _registration_datetime_conds(since, until_exclusive)
+    phone_filter = " AND TRIM(COALESCE(r.phone, '')) != ''" if phone_required else ""
+    rows = (
+        get_db()
+        .execute(
+            """SELECT r.rowid AS registration_rowid, r.*,
+                  COALESCE(s.title, '') AS seminar_title,
+                  COALESCE(u.first_name, '') AS telegram_first_name,
+                  COALESCE(u.username, '') AS telegram_username
+           FROM registrations AS r
+           LEFT JOIN seminars AS s ON s.id = r.seminar_id
+           LEFT JOIN users AS u ON u.user_id = r.user_id
+           WHERE 1 = 1"""
+            + phone_filter
+            + conds
+            + " ORDER BY r.created_at, r.rowid",
+            params,
+        )
+        .fetchall()
+    )
+    return [dict(row) for row in rows]
+
+
+def list_contact_leads(
+    *, since: datetime | None = None, until_exclusive: datetime | None = None
+) -> list[dict]:
+    """لیدهای دارای شماره، یک ردیف برای هر شناسهٔ تلگرام.
+
+    اگر یک کاربر در بازهٔ انتخابی چند سمینار داشته باشد، تازه‌ترین ثبت‌نام
+    دارای شماره برای او نگه داشته می‌شود. فیلتر زمانی بر اساس شروع فرم است.
+    """
+    rows = _registration_export_rows(
+        since=since, until_exclusive=until_exclusive, phone_required=True
+    )
+    latest_by_user: dict[int, dict] = {}
+    for row in rows:
+        latest_by_user[int(row["user_id"])] = row
+    return sorted(
+        latest_by_user.values(),
+        key=lambda row: (row["created_at"], int(row["user_id"])),
+    )
+
+
+def list_registration_starts(
+    *, since: datetime | None = None, until_exclusive: datetime | None = None
+) -> list[dict]:
+    """همهٔ شروع‌های فرم ثبت‌نام، حتی موارد نیمه‌کاره و بدون شماره."""
+    return _registration_export_rows(
+        since=since, until_exclusive=until_exclusive, phone_required=False
+    )
+
+
 def funnel_counts(seminar_id: int) -> dict[str, int]:
     """شمارش رسیدن به هر مرحله (برای قیف آماری)."""
     order = list(STEP_ORDER)
