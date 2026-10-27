@@ -6,6 +6,9 @@ import csv
 import io
 import sqlite3
 
+from openpyxl import load_workbook
+from telegram import InputFile
+
 from bot.config import content
 from bot.constants import REF_START_PREFIX
 from bot.services import referrals, seminars
@@ -159,6 +162,7 @@ async def test_admin_ads_hub_lists_named_links_and_new_button(bot_app):
     assert "adm:ads:new" in callbacks(sent["reply_markup"])
     assert "adm:ads:msg" in callbacks(sent["reply_markup"])
     assert "adm:ads:csv" in callbacks(sent["reply_markup"])
+    assert "adm:ads:xlsx" in callbacks(sent["reply_markup"])
 
 
 async def test_admin_create_link_with_label_flow(bot_app):
@@ -223,6 +227,7 @@ async def test_admin_link_regs_message_and_csv(bot_app):
     cbs = callbacks(last_edit(bot)["reply_markup"])
     assert f"adm:ads:rg:{link['link_id']}" in cbs
     assert f"adm:ads:rgc:{link['link_id']}" in cbs
+    assert f"adm:ads:rgx:{link['link_id']}" in cbs
 
     # پیام لیست: فقط ثبت‌نامیِ همین لینک، با اسم و شماره‌ها
     await tap(app, bot, f"adm:ads:rg:{link['link_id']}", user=USER)
@@ -239,11 +244,22 @@ async def test_admin_link_regs_message_and_csv(bot_app):
     rows = list(
         csv.reader(io.StringIO(doc["document"].getvalue().decode("utf-8").lstrip("\ufeff")))
     )
-    assert rows[0][1:7] == ["نام", "پایه", "رشته", "شهر", "شماره تلگرام", "شماره پیامک"]
+    assert rows[0][1:7] == ["نام", "پایه", "رشته", "شهر", "شماره تلگرام", "شماره جایگزین"]
     assert len(rows) == 2  # سرصفحه + فقط کاربر ۱
     assert rows[1][1] == "سارا احمدی"
     assert rows[1][5] == "+989121234567" and rows[1][6] == "09123456789"
     assert rows[1][7] == "کامل"
+
+    # Excel واقعی همین لینک
+    await tap(app, bot, f"adm:ads:rgx:{link['link_id']}", user=USER)
+    doc = last_document(bot)
+    assert doc["filename"] == f"ref-{link['code']}-regs.xlsx"
+    upload = InputFile(doc["document"], filename=doc["filename"])
+    assert upload.mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    workbook = load_workbook(io.BytesIO(upload.input_file_content), read_only=True, data_only=True)
+    excel_rows = list(workbook.active.values)
+    assert excel_rows[0][6] == "شماره جایگزین"
+    assert excel_rows[1][1] == "سارا احمدی" and excel_rows[1][6] == "09123456789"
 
 
 async def test_admin_ads_msg_full_stats(bot_app):
@@ -270,6 +286,14 @@ async def test_admin_ads_csv_document(bot_app):
     assert rows[0][:6] == ["code", "label", "active", "created_at", "link", "starts"]
     assert [r[1] for r in rows[1:]] == ["کانال ب", "کانال الف"]  # جدیدترین اول
     assert all(r[4].startswith("https://t.me/nikmanesh_bot?start=ref_") for r in rows[1:])
+
+    await tap(app, bot, "adm:ads:xlsx", user=USER)
+    doc = last_document(bot)
+    assert doc["filename"] == "nikmanesh-ads.xlsx"
+    workbook = load_workbook(io.BytesIO(doc["document"].getvalue()), read_only=True)
+    excel_rows = list(workbook.active.values)
+    assert excel_rows[0][:6] == ("code", "label", "active", "created_at", "link", "starts")
+    assert [row[1] for row in excel_rows[1:]] == ["کانال ب", "کانال الف"]
 
 
 # ── مهاجرت دیتابیس قدیمی ────────────────────────────────────────────────
