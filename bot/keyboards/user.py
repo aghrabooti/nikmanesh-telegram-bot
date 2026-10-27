@@ -76,15 +76,15 @@ def wiz_field_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
-def wiz_sms_keyboard() -> ReplyKeyboardMarkup:
-    """مرحله‌ی تایید شماره: دکمه‌ی «شماره‌م درسته» + ورود دستی + ناوبری."""
-    rows = [[KeyboardButton(content.LBL_PHONE_OK)]]
+def wiz_alternate_phone_keyboard() -> ReplyKeyboardMarkup:
+    """مرحله‌ی شماره جایگزین: ثبت همان شماره یا ورود شماره‌ی دیگری + ناوبری."""
+    rows = [[KeyboardButton(content.LBL_ALTERNATE_PHONE_OK)]]
     rows.append(_nav_row(with_prev=True))
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 def wiz_text_keyboard() -> ReplyKeyboardMarkup:
-    """مراحل تایپی (شهر/شماره پیامک) — فقط ناوبری."""
+    """مراحل تایپی (شهر/شماره جایگزین) — فقط ناوبری."""
     return ReplyKeyboardMarkup([_nav_row(with_prev=True)], resize_keyboard=True)
 
 
