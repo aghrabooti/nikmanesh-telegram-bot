@@ -33,3 +33,30 @@ async def render_screen(
             parse_mode=ParseMode.HTML,
             reply_markup=reply_markup,
         )
+
+
+async def render_saved_screen(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    chat_id: int | None,
+    message_id: int | None,
+    text: str,
+    reply_markup=None,
+) -> None:
+    """Edit a saved bot prompt after a text reply; fall back to a fresh screen."""
+    if chat_id is not None and message_id is not None:
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup,
+            )
+        except TelegramError as exc:
+            if "not modified" in str(exc).lower():
+                return
+        else:
+            return
+    await render_screen(update, context, text=text, reply_markup=reply_markup)
