@@ -39,7 +39,7 @@ from bot.constants import (
     PATTERN_CH_LINK,
 )
 from bot.keyboards import user as user_keyboards
-from bot.services import referrals, seminars
+from bot.services import referrals, seminars, wide_admins
 from bot.utils.persian import to_fa
 
 
@@ -136,6 +136,11 @@ async def channels_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             ),
         )
         return
+    if wide_admins.is_wide_admin(user.id):
+        from bot.handlers.wide_admin import open_workspace  # noqa: PLC0415
+
+        await open_workspace(update, context)
+        return
     # /channels <رمز> — راه مستقیم برای اضافه کردن کانال‌های بعدی
     args = context.args or []
     if args:
@@ -168,6 +173,12 @@ async def consume_phrase(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def _process_phrase(update: Update, context: ContextTypes.DEFAULT_TYPE, phrase: str) -> None:
     """اعتبارسنجی رمز و اعطای دسترسی — مشترک بین متن آزاد و /channels <رمز>."""
     user = update.effective_user
+    if wide_admins.is_wide_admin(user.id):
+        context.user_data.pop(CHANNELS_STATE_KEY, None)
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id, text=content.WIDE_LINK_ACCESS_DENIED
+        )
+        return
     had_links = bool(referrals.user_links(user.id))
     context.user_data.pop(CHANNELS_STATE_KEY, None)
 
@@ -237,8 +248,10 @@ async def channels_link_page(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """صفحه‌ی آمار تجمیعی یک لینک — فقط برای ادمینِ همان کانال."""
     query = update.callback_query
     link = referrals.get_link(int(context.match.group(1)))
-    if link is None or not referrals.is_channel_admin(
-        update.effective_user.id, int(link["link_id"])
+    if (
+        wide_admins.is_wide_admin(update.effective_user.id)
+        or link is None
+        or not referrals.is_channel_admin(update.effective_user.id, int(link["link_id"]))
     ):
         await query.answer(content.CH_ACCESS_DENIED, show_alert=True)
         return
@@ -250,7 +263,12 @@ async def channels_link_page(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def channels_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """دکمه‌ی «کانال‌های من» — بازگشت به لیست کانال‌های همین کاربر."""
+    """دکمه‌ی «کانال‌های من» — بازگشت به فهرست مجاز همین کاربر."""
+    if wide_admins.is_wide_admin(update.effective_user.id):
+        from bot.handlers.wide_admin import open_workspace  # noqa: PLC0415
+
+        await open_workspace(update, context)
+        return
     query = update.callback_query
     await query.answer()
     context.user_data.pop(CHANNELS_STATE_KEY, None)
@@ -266,6 +284,9 @@ async def channels_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def channels_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """دکمه‌ی «➕ افزودن کانال» — گرفتن رمز کانال بعدی بدون پاک شدن قبلی‌ها."""
     query = update.callback_query
+    if wide_admins.is_wide_admin(update.effective_user.id):
+        await query.answer(content.WIDE_LINK_ACCESS_DENIED, show_alert=True)
+        return
     await query.answer()
     context.user_data[CHANNELS_STATE_KEY] = True
     await navigation.render_screen(
