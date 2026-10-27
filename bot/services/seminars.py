@@ -8,21 +8,23 @@ from bot.config import content
 from bot.services.database import get_db, now_iso
 
 # مراحل ویزارد ثبت‌نام (ترتیب مهم است):
-# نام ← پایه ← رشته ← شهر ← شماره تلگرام ← شماره پیامک ← پایان
+# نام ← پایه ← رشته ← شهر ← شماره تلگرام ← شماره جایگزین ← پایان
 STEP_NAME = "name"
 STEP_GRADE = "grade"
 STEP_FIELD = "field"
 STEP_CITY = "city"
 STEP_PHONE = "phone"
-STEP_SMS = "sms"
+STEP_ALTERNATE_PHONE = "alternate_phone"
 STEP_DONE = "done"
 
-STEP_ORDER = (STEP_NAME, STEP_GRADE, STEP_FIELD, STEP_CITY, STEP_PHONE, STEP_SMS)
+STEP_ORDER = (STEP_NAME, STEP_GRADE, STEP_FIELD, STEP_CITY, STEP_PHONE, STEP_ALTERNATE_PHONE)
 
 # مراحل نسخه‌های قدیمی ↔ معادل جدید
 LEGACY_STEP_MAP = {
     "level": STEP_GRADE,
-    "confirm": STEP_SMS,
+    "confirm": STEP_ALTERNATE_PHONE,
+    "sms": STEP_ALTERNATE_PHONE,
+    "available_phone": STEP_ALTERNATE_PHONE,
 }
 
 # نام فیلد ادمین ↔ ستون دیتابیس
@@ -245,9 +247,15 @@ def _range_conds(since: date | None, until: date | None) -> tuple[str, list]:
 
 
 def list_registrations(
-    seminar_id: int, *, since: date | None = None, until: date | None = None
+    seminar_id: int,
+    *,
+    since: date | None = None,
+    until: date | None = None,
+    completed_only: bool = False,
 ) -> list[dict]:
     conds, params = _range_conds(since, until)
+    if completed_only:
+        conds += " AND is_complete = 1"
     # rowid به‌جای id — در دیتابیس‌های قدیمیِ بدون ستون id هم کار می‌کند
     sql = f"SELECT * FROM registrations WHERE seminar_id = ?{conds} ORDER BY created_at, rowid"
     return [_row(r) for r in get_db().execute(sql, [seminar_id, *params])]
