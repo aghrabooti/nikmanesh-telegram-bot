@@ -1,4 +1,4 @@
-"""تست ویزارد ثبت‌نام ۷ مرحله‌ای: نام ← پایه ← رشته ← شهر ← تلفن ← پیامک."""
+"""تست ویزارد ثبت‌نام ۷ مرحله‌ای: نام ← پایه ← رشته ← شهر ← تلفن ← شماره جایگزین."""
 
 from __future__ import annotations
 
@@ -66,10 +66,10 @@ async def test_step_texts_and_keyboards(bot_app):
     assert sent["reply_markup"].keyboard[0][0].request_contact is True
     assert not sent["reply_markup"].one_time_keyboard  # کیبورد پایدار بماند
 
-    # ۶) شماره پیامک
+    # ۶) شماره جایگزین
     await share_contact(app, bot, user=NON_ADMIN, phone="09121234567")
     sent = last_send(bot)
-    assert sent["text"] == content.WIZ_SMS_TEXT
+    assert sent["text"] == content.WIZ_ALTERNATE_PHONE_TEXT
 
 
 async def test_name_english_rejected(bot_app):
@@ -121,7 +121,7 @@ async def test_phone_step_typed_number_accepted(bot_app):
     await send_text(app, bot, "انسانی", user=NON_ADMIN)
     await send_text(app, bot, "تهران", user=NON_ADMIN)
     await send_text(app, bot, "۰۹۱۲۳۴۵۶۷۸۹", user=NON_ADMIN)  # تایپ فارسی
-    assert last_send(bot)["text"] == content.WIZ_SMS_TEXT  # رفته به مرحله‌ی بعد
+    assert last_send(bot)["text"] == content.WIZ_ALTERNATE_PHONE_TEXT  # رفته به مرحله‌ی بعد
     reg = seminars.get_registration(NON_ADMIN.id, 1)
     assert reg["phone"] == "+989123456789"
 
@@ -139,8 +139,8 @@ async def test_phone_step_typed_garbage_rejected(bot_app):
     assert "۰۹۱۲۳۴۵۶۷۸۹" in last_send(bot)["text"]  # راهنمای تایپ دستی
 
 
-async def test_sms_confirm_button_uses_telegram_phone(bot_app):
-    """دکمه‌ی «✅ شماره‌م درسته»: همان شماره تلگرام برای پیامک — بدون ورودی اجباری."""
+async def test_alternate_phone_confirm_button_uses_telegram_phone(bot_app):
+    """تأیید همان شماره تلگرام به‌عنوان شماره جایگزین؛ بدون ورودی مجدد."""
     app, bot = bot_app
     await _create(app, bot)
     await _start(app, bot)
@@ -149,20 +149,20 @@ async def test_sms_confirm_button_uses_telegram_phone(bot_app):
     await send_text(app, bot, "تهران", user=NON_ADMIN)
     await share_contact(app, bot, user=NON_ADMIN, phone="09121234567")
     sent = last_send(bot)
-    assert sent["text"] == content.WIZ_SMS_TEXT
+    assert sent["text"] == content.WIZ_ALTERNATE_PHONE_TEXT
     # کیبورد مرحله: دکمه‌ی تأیید + ناوبری
     rows = _reply_rows(sent["reply_markup"])
-    assert rows[0] == [content.LBL_PHONE_OK]
+    assert rows[0] == [content.LBL_ALTERNATE_PHONE_OK]
     assert rows[1] == ["⬅️ مرحله قبل", "🔙 بازگشت"]
 
-    await send_text(app, bot, content.LBL_PHONE_OK, user=NON_ADMIN)
+    await send_text(app, bot, content.LBL_ALTERNATE_PHONE_OK, user=NON_ADMIN)
     reg = seminars.get_registration(NON_ADMIN.id, 1)
     assert reg["is_complete"] == 1
     assert reg["phone"] == "+989121234567"
-    assert reg["sms_phone"] == "09121234567"  # از شماره تلگرام گرفته شد
+    assert reg["alternate_phone"] == "09121234567"  # از شماره تلگرام گرفته شد
 
 
-async def test_sms_confirm_without_phone_prompts_typing(bot_app):
+async def test_alternate_phone_confirm_without_phone_prompts_typing(bot_app):
     """قدیمی/بدون شماره‌ی تلگرام: دکمه‌ی تأیید → راهنمای ورود دستی."""
     app, bot = bot_app
     await _create(app, bot)
@@ -172,17 +172,17 @@ async def test_sms_confirm_without_phone_prompts_typing(bot_app):
     await send_text(app, bot, "تهران", user=NON_ADMIN)
     await share_contact(app, bot, user=NON_ADMIN, phone="09121234567")
     # شبیه‌سازی رکورد قدیمی بدون شماره‌ی تلگرام
-    seminars.save_registration(NON_ADMIN.id, 1, next_step=seminars.STEP_SMS, phone="")
-    await send_text(app, bot, content.LBL_PHONE_OK, user=NON_ADMIN)
-    assert last_send(bot)["text"] == content.WIZ_SMS_INVALID
+    seminars.save_registration(NON_ADMIN.id, 1, next_step=seminars.STEP_ALTERNATE_PHONE, phone="")
+    await send_text(app, bot, content.LBL_ALTERNATE_PHONE_OK, user=NON_ADMIN)
+    assert last_send(bot)["text"] == content.WIZ_ALTERNATE_PHONE_INVALID
     # ورود دستی همچنان کار می‌کند
     await send_text(app, bot, "۰۹۳۵۱۱۱۲۲۳۳", user=NON_ADMIN)
     reg = seminars.get_registration(NON_ADMIN.id, 1)
-    assert reg["is_complete"] == 1 and reg["sms_phone"] == "09351112233"
+    assert reg["is_complete"] == 1 and reg["alternate_phone"] == "09351112233"
 
 
-async def test_sms_validation_variants(bot_app):
-    """شماره پیامک: باید با ۰۹ شروع شود و ۱۱ رقم باشد — فارسی و انگلیسی."""
+async def test_alternate_phone_validation_variants(bot_app):
+    """شماره جایگزین: باید با ۰۹ شروع شود و ۱۱ رقم باشد — فارسی و انگلیسی."""
     app, bot = bot_app
     await _create(app, bot)
     await _start(app, bot)
@@ -207,10 +207,10 @@ async def test_sms_validation_variants(bot_app):
             assert "تکمیل شد" in texts(bot)[-2], f"{raw} باید قبول شود"
             assert last_send(bot)["text"] == content.MENU_HINT_TEXT
             return  # ثبت‌نام کامل شد
-        assert last_send(bot)["text"] == content.WIZ_SMS_INVALID, f"{raw} باید رد شود"
+        assert last_send(bot)["text"] == content.WIZ_ALTERNATE_PHONE_INVALID, f"{raw} باید رد شود"
 
 
-async def test_sms_invalid_then_valid(bot_app):
+async def test_alternate_phone_invalid_then_valid(bot_app):
     app, bot = bot_app
     await _create(app, bot)
     await _start(app, bot)
@@ -220,12 +220,12 @@ async def test_sms_invalid_then_valid(bot_app):
     await share_contact(app, bot, user=NON_ADMIN, phone="09121234567")
 
     await send_text(app, bot, "12345", user=NON_ADMIN)
-    assert last_send(bot)["text"] == content.WIZ_SMS_INVALID
+    assert last_send(bot)["text"] == content.WIZ_ALTERNATE_PHONE_INVALID
     await send_text(app, bot, "۰۹۱۲۳۴۵۶۷۸۹", user=NON_ADMIN)
 
     reg = seminars.get_registration(NON_ADMIN.id, 1)
     assert reg["is_complete"] == 1
-    assert reg["sms_phone"] == "09123456789"
+    assert reg["alternate_phone"] == "09123456789"
     assert reg["phone"] == "+989121234567"  # شماره تلگرام از اشتراک مخاطب
     assert reg["grade"] == "کنکوری ۴۰۸"
     assert reg["field"] == "ریاضی"
