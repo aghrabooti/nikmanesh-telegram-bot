@@ -101,7 +101,7 @@ async def test_seminar_not_found(bot_app):
 
 
 async def test_full_registration_flow(bot_app):
-    """فلو کامل ۷ مرحله‌ای: نام ← پایه ← رشته ← شهر ← تلفن ← پیامک ← پیام آخر."""
+    """فلو کامل ۷ مرحله‌ای: نام ← پایه ← رشته ← شهر ← تلفن ← شماره جایگزین ← پیام آخر."""
     app, bot = bot_app
     await _create_seminar(app, bot)
     await tap(app, bot, "sem:reg:1", user=NON_ADMIN)
@@ -111,7 +111,7 @@ async def test_full_registration_flow(bot_app):
     await send_text(app, bot, "تجربی", user=NON_ADMIN)  # رشته
     await send_text(app, bot, "تهران", user=NON_ADMIN)  # شهر
     await share_contact(app, bot, user=NON_ADMIN, phone="09121234567")  # تلفن تلگرام
-    await send_text(app, bot, "۰۹۳۵۱۲۳۴۵۶۷", user=NON_ADMIN)  # شماره پیامک
+    await send_text(app, bot, "۰۹۳۵۱۲۳۴۵۶۷", user=NON_ADMIN)  # شماره جایگزین
 
     final, menu = _last_two_sends(bot)
     assert final["text"] == content.FINAL_MSG.format(
@@ -124,7 +124,7 @@ async def test_full_registration_flow(bot_app):
     reg = seminars.get_registration(NON_ADMIN.id, 1)
     assert reg["is_complete"] == 1
     assert reg["phone"] == "+989121234567"
-    assert reg["sms_phone"] == "09351234567"
+    assert reg["alternate_phone"] == "09351234567"
     assert reg["grade"] == "کنکوری ۴۰۷"
     assert reg["field"] == "تجربی"
     assert reg["current_step"] == seminars.STEP_DONE
