@@ -14,14 +14,19 @@ from bot.constants import (
     CB_ADMIN_ADS_NEW,
     CB_ADMIN_ADS_REGS,
     CB_ADMIN_ADS_REGS_CSV,
+    CB_ADMIN_ADS_REGS_XLSX,
     CB_ADMIN_ADS_RESET_PHRASE,
+    CB_ADMIN_ADS_XLSX,
     CB_ADMIN_BCAST,
     CB_ADMIN_BCAST_GO,
     CB_ADMIN_BCAST_NO,
     CB_ADMIN_RANGE,
     CB_ADMIN_REGS,
     CB_ADMIN_REGS_CSV,
+    CB_ADMIN_REGS_CSV_COMPLETE,
     CB_ADMIN_REGS_MSG,
+    CB_ADMIN_REGS_XLSX,
+    CB_ADMIN_REGS_XLSX_COMPLETE,
     CB_ADMIN_REMINDERS,
     CB_ADMIN_SEM_DELETE,
     CB_ADMIN_SEM_DELETE2,
@@ -31,6 +36,8 @@ from bot.constants import (
     CB_ADMIN_SEM_OPEN,
     CB_ADMIN_SEM_PAGE,
     CB_ADMIN_SEMS,
+    CB_ADMIN_USERS_CSV,
+    CB_ADMIN_USERS_XLSX,
     CB_MAIN,
     SEMINAR_FIELDS,
 )
@@ -47,6 +54,10 @@ def overview(*, reminders_on: bool = True) -> InlineKeyboardMarkup:
         [
             [_btn(content.LBL_ADMIN_SEMS, CB_ADMIN_SEMS)],
             [_btn(content.LBL_ADMIN_BCAST, CB_ADMIN_BCAST)],
+            [
+                _btn(content.LBL_ADMIN_USERS_CSV, CB_ADMIN_USERS_CSV),
+                _btn(content.LBL_ADMIN_USERS_XLSX, CB_ADMIN_USERS_XLSX),
+            ],
             [_btn(content.LBL_ADMIN_ADS, CB_ADMIN_ADS)],
             [
                 _btn(
@@ -130,9 +141,23 @@ def regs_page(seminar_id: int) -> InlineKeyboardMarkup:
     """صفحه‌ی ثبت‌نام‌ها: خروجی‌ها + بازه‌ی تاریخ."""
     return InlineKeyboardMarkup(
         [
+            [_btn(content.LBL_ADMIN_REGS_MSG, CB_ADMIN_REGS_MSG.format(seminar_id=seminar_id))],
             [
-                _btn(content.LBL_ADMIN_REGS_MSG, CB_ADMIN_REGS_MSG.format(seminar_id=seminar_id)),
                 _btn(content.LBL_ADMIN_REGS_CSV, CB_ADMIN_REGS_CSV.format(seminar_id=seminar_id)),
+                _btn(
+                    content.LBL_ADMIN_REGS_CSV_COMPLETE,
+                    CB_ADMIN_REGS_CSV_COMPLETE.format(seminar_id=seminar_id),
+                ),
+            ],
+            [
+                _btn(
+                    content.LBL_ADMIN_REGS_XLSX,
+                    CB_ADMIN_REGS_XLSX.format(seminar_id=seminar_id),
+                ),
+                _btn(
+                    content.LBL_ADMIN_REGS_XLSX_COMPLETE,
+                    CB_ADMIN_REGS_XLSX_COMPLETE.format(seminar_id=seminar_id),
+                ),
             ],
             [
                 _btn(content.LBL_RANGE_TODAY, CB_ADMIN_RANGE.format(code="today")),
@@ -157,6 +182,7 @@ def ads(link_rows: list[list[InlineKeyboardButton]] = ()) -> InlineKeyboardMarku
     rows += [
         [_btn(content.LBL_ADS_MSG, CB_ADMIN_ADS_MSG)],
         [_btn(content.LBL_ADS_CSV, CB_ADMIN_ADS_CSV)],
+        [_btn(content.LBL_ADS_XLSX, CB_ADMIN_ADS_XLSX)],
         [_btn(content.LBL_HOME, CB_MAIN)],
     ]
     return InlineKeyboardMarkup(rows)
@@ -169,15 +195,10 @@ def ads_link_detail(link: dict) -> InlineKeyboardMarkup:
     rows = [
         [_btn(label, f"adm:ads:t:{link_id}")],
         [_btn(content.LBL_ADS_RESET_PHRASE, CB_ADMIN_ADS_RESET_PHRASE.format(link_id=link_id))],
+        [_btn(content.LBL_ADS_REGS, CB_ADMIN_ADS_REGS.format(link_id=link_id))],
         [
-            _btn(
-                content.LBL_ADS_REGS,
-                CB_ADMIN_ADS_REGS.format(link_id=link_id),
-            ),
-            _btn(
-                content.LBL_ADS_REGS_CSV,
-                CB_ADMIN_ADS_REGS_CSV.format(link_id=link_id),
-            ),
+            _btn(content.LBL_ADS_REGS_CSV, CB_ADMIN_ADS_REGS_CSV.format(link_id=link_id)),
+            _btn(content.LBL_ADS_REGS_XLSX, CB_ADMIN_ADS_REGS_XLSX.format(link_id=link_id)),
         ],
     ]
     for admin_row in _link_admin_rows(link_id):
