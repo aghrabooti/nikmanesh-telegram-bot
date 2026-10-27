@@ -266,7 +266,7 @@ async def test_create_link_message_includes_phrase(bot_app):
     await tap(app, bot, "adm:ads", user=USER)
     await tap(app, bot, "adm:ads:new", user=USER)
     await send_text(app, bot, "کانال جدید", user=USER)
-    created = bot.send_message.await_args_list[-2].kwargs["text"]
+    created = bot.send_message.await_args_list[-1].kwargs["text"]
     assert "رمز ورود بخش کانال‌ها" in created
     link = referrals.links()[0]
     assert f"<code>{link['phrase']}</code>" in created
