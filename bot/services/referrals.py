@@ -33,7 +33,7 @@ STEP_LABELS = {
     seminars.STEP_FIELD: "رشته",
     seminars.STEP_CITY: "شهر",
     seminars.STEP_PHONE: "شماره",
-    seminars.STEP_SMS: "تایید شماره",
+    seminars.STEP_ALTERNATE_PHONE: "شماره جایگزین",
     seminars.STEP_DONE: "ثبت‌نام کامل",
 }
 
@@ -306,7 +306,7 @@ def link_regs_csv(link: dict) -> str:
             "رشته",
             "شهر",
             "شماره تلگرام",
-            "شماره پیامک",
+            "شماره جایگزین",
             "وضعیت",
             "سمینار",
             "تاریخ ثبت",
@@ -321,7 +321,7 @@ def link_regs_csv(link: dict) -> str:
                 reg["field"],
                 reg["city"],
                 reg["phone"],
-                reg["sms_phone"],
+                reg["alternate_phone"],
                 "کامل" if reg["is_complete"] else "نیمه‌کاره",
                 reg["seminar_title"] or "—",
                 reg["created_at"],
