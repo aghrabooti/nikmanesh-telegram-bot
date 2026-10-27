@@ -30,6 +30,13 @@ async def _serve(app: Application, settings) -> None:
         interval_minutes=settings.database_backup_interval_minutes,
         retention_days=settings.database_backup_retention_days,
     )
+    database_backups.ensure_delivery_task(
+        settings.database_path,
+        settings.database_backup_dir,
+        app.bot,
+        settings.admin_ids,
+        retention_days=settings.database_backup_retention_days,
+    )
     reminders.ensure_task(app)
     sender.ensure_worker()
     secret_path = settings.bot_token.split(":")[0]
